@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الفارس لمستلزمات السباحة و احذية الاطفال</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <h2>الفارس</h2>
+        <small>Swimming &amp; Shoes</small>
+      </div>
+      <nav class="nav">
+        <a class="nav-item active" data-view="pos">
+          <span class="icon">🛒</span>
+          <span>المبيعات</span>
+        </a>
+        <a class="nav-item" data-view="products">
+          <span class="icon">📦</span>
+          <span>المنتجات</span>
+        </a>
+        <a class="nav-item" data-view="print">
+          <span class="icon">🏷️</span>
+          <span>طباعة باركود</span>
+        </a>
+        <a class="nav-item" data-view="reports">
+          <span class="icon">📊</span>
+          <span>تقارير</span>
+        </a>
+        <a class="nav-item" data-view="dashboard">
+          <span class="icon">📈</span>
+          <span>لوحة البيانات</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <small>الفارس لمستلزمات<br>السباحة و احذية الاطفال</small>
+        <button id="reset-data">🔄 اعادة تعيين</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Top Bar -->
+      <div class="topbar">
+        <h1>نظام البيع - الفارس</h1>
+        <div class="date"><span id="current-date"></span></div>
+      </div>
+
+      <!-- ==================== VIEW: POS ==================== -->
+      <div id="view-pos" class="view active">
+        <div class="pos-layout">
+          <!-- Products Area -->
+          <div>
+            <div class="pos-toolbar">
+              <input type="search" id="pos-search" placeholder="ابحث عن منتج بالاسم او الباركود...">
+              <input type="text" id="barcode-scan" placeholder="امسح الباركود هنا..." autofocus>
+              <select id="category-filter"></select>
+            </div>
+            <div class="product-grid" id="product-grid"></div>
+          </div>
+          <!-- Cart -->
+          <div class="cart-panel" id="cart-panel">
+            <div class="cart-header">
+              <h2>السلة</h2>
+              <span class="cart-count" id="cart-count">0</span>
+            </div>
+            <div class="cart-items" id="cart-items">
+              <div class="empty-cart">لا توجد منتجات في السلة</div>
+            </div>
+            <div class="cart-footer">
+              <div class="cart-total-row grand">
+                <span>الاجمالي</span>
+                <span id="cart-subtotal">0 EGP</span>
+              </div>
+              <button class="btn btn-primary btn-block" id="checkout-btn">💰 اتمام البيع</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: PRODUCTS ==================== -->
+      <div id="view-products" class="view">
+        <div class="card">
+<div class="card-title">
+            <span>ادارة المنتجات</span>
+            <div class="bulk-actions">
+              <span class="selected-count" id="selected-count">0 محدد</span>
+              <button class="btn btn-danger btn-sm" id="delete-selected-btn" style="display:none;">🗑️ حذف المحدد</button>
+              <button class="btn btn-primary" id="add-product-btn">➕ اضافة منتج</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:40px;"><input type="checkbox" id="select-all"></th>
+                  <th>الاسم</th>
+                  <th>الباركود</th>
+                  <th>القسم</th>
+                  <th>سعر البيع</th>
+                  <th>سعر الشراء</th>
+                  <th>المخزون</th>
+                  <th>اجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="products-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: PRINT LABELS ==================== -->
+      <div id="view-print" class="view">
+        <div class="card">
+<div class="card-title">
+            <span>طباعة ملصقات الباركود</span>
+            <div class="bulk-actions">
+              <button class="btn btn-outline btn-sm" id="print-select-all">✅ تحديد الكل</button>
+              <button class="btn btn-outline btn-sm" id="print-deselect-all">❌ الغاء التحديد</button>
+              <button class="btn btn-success" id="print-labels">🖨️ طباعة المحدد</button>
+            </div>
+          </div>
+          <div class="print-list" id="print-list"></div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: REPORTS ==================== -->
+      <div id="view-reports" class="view">
+        <div class="report-grid">
+          <div class="report-box"><div class="num" id="report-today-count">0</div><div class="lbl">مبيعات اليوم</div></div>
+          <div class="report-box"><div class="num" id="report-today-revenue">0</div><div class="lbl">ايرادات اليوم</div></div>
+          <div class="report-box"><div class="num" id="report-today-profit">0</div><div class="lbl">ارباح اليوم</div></div>
+          <div class="report-box"><div class="num" id="report-total-count">0</div><div class="lbl">اجمالي المبيعات</div></div>
+          <div class="report-box"><div class="num" id="report-total-revenue">0</div><div class="lbl">اجمالي الايرادات</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <div class="card">
+            <div class="card-title">🏆 اكثر 5 منتجات مبيعا</div>
+            <div id="top-products"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">⚠️ منتجات منخفضة المخزون</div>
+            <div id="low-stock-list"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🧾 اخر المبيعات</div>
+          <div id="sales-history"></div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: DASHBOARD ==================== -->
+      <div id="view-dashboard" class="view">
+        <div class="stat-grid">
+          <div class="stat-card blue">
+            <div class="label">مبيعات اليوم</div>
+            <div class="value" id="stat-today-sales">0</div>
+          </div>
+          <div class="stat-card green">
+            <div class="label">ايرادات اليوم</div>
+            <div class="value" id="stat-today-revenue">0 EGP</div>
+          </div>
+          <div class="stat-card orange">
+            <div class="label">ارباح اليوم</div>
+            <div class="value" id="stat-today-profit">0 EGP</div>
+          </div>
+          <div class="stat-card blue">
+            <div class="label">اجمالي المنتجات</div>
+            <div class="value" id="stat-total-products">0</div>
+          </div>
+          <div class="stat-card red">
+            <div class="label">مخزون منخفض</div>
+            <div class="value" id="stat-low-stock">0</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🧾 اخر المبيعات</div>
+          <div id="sales-history"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== MODAL: Checkout ==================== -->
+  <div class="modal" id="checkout-modal">
+    <div class="modal-content">
+      <h2>💰 اتمام البيع</h2>
+      <div class="form-group">
+        <label>المجموع</label>
+        <div style="font-size:22px;font-weight:bold;color:var(--primary);padding:5px 0;" id="checkout-subtotal">0 EGP</div>
+      </div>
+      <div class="form-group">
+        <label>الخصم</label>
+        <input type="number" id="checkout-discount" value="0" min="0" oninput="App.updateCheckoutTotal()">
+      </div>
+      <div class="form-group">
+        <label>المجموع بعد الخصم</label>
+        <div style="font-size:20px;font-weight:bold;padding:5px 0;" id="checkout-total">0 EGP</div>
+      </div>
+      <div class="form-group">
+        <label>المبلغ المدفوع</label>
+        <input type="number" id="checkout-paid" min="0" oninput="App.updateCheckoutTotal()">
+      </div>
+      <div class="form-group">
+        <label>طريقة الدفع</label>
+        <select id="checkout-payment">
+          <option value="cash">نقدي</option>
+          <option value="card">بطاقة</option>
+          <option value="cod">الدفع عند الاستلام</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>الباقي</label>
+        <div style="font-size:18px;font-weight:bold;color:var(--success);padding:5px 0;" id="checkout-change">0 EGP</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-success" id="confirm-sale">✅ تاكيد</button>
+        <button class="btn btn-outline" id="cancel-checkout">❌ الغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: Product ==================== -->
+  <div class="modal" id="product-modal">
+    <div class="modal-content">
+      <h2 id="product-modal-title">اضافة منتج جديد</h2>
+      <input type="hidden" id="product-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label>الاسم (عربي)</label>
+          <input type="text" id="product-name" placeholder="اسم المنتج">
+        </div>
+        <div class="form-group">
+          <label>الاسم (English)</label>
+          <input type="text" id="product-name-en" placeholder="Product name">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>الباركود <small>(EAN-13)</small></label>
+        <div class="barcode-input-row">
+          <input type="text" id="product-barcode" style="flex:1;" placeholder="البادئة 622 لمصر">
+          <button class="btn btn-outline" id="generate-barcode">🎲 توليد</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>القسم</label>
+        <select id="product-category"></select>
+      </div>
+<div class="form-row">
+        <div class="form-group">
+          <label>السعر قبل الخصم (EGP)</label>
+          <input type="number" id="product-oldprice" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>سعر البيع بعد الخصم (EGP)</label>
+          <input type="number" id="product-price" step="0.01" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>سعر الشراء (EGP)</label>
+          <input type="number" id="product-cost" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label>الخصم (EGP)</label>
+          <input type="number" id="product-discount" step="0.01" min="0" readonly>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>المخزون</label>
+          <input type="number" id="product-stock" min="0">
+        </div>
+        <div class="form-group">
+          <label>الحد الادنى للمخزون</label>
+          <input type="number" id="product-minstock" min="0">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="save-product">💾 حفظ</button>
+        <button class="btn btn-outline" id="cancel-product">❌ الغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="data/seed-data.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/barcode.js"></script>
+  <script src="js/products.js"></script>
+  <script src="js/sales.js"></script>
+  <script src="js/app.js"></script>
+
+  <script>
+    // Display current date
+    const now = new Date();
+    document.getElementById('current-date').textContent = now.toLocaleDateString('ar-EG', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+// Checkout total preview logic
+    App.updateCheckoutTotal = function() {
+      const oldSubtotal = SalesManager.getOldSubtotal();
+      const discount = parseFloat(document.getElementById('checkout-discount').value) || 0;
+      const total = Math.max(0, oldSubtotal - discount);
+      const paid = parseFloat(document.getElementById('checkout-paid').value) || 0;
+      const change = Math.max(0, paid - total);
+      const settings = Store.getSettings();
+
+      document.getElementById('checkout-subtotal').textContent = oldSubtotal + ' ' + settings.currency;
+      document.getElementById('checkout-total').textContent = total + ' ' + settings.currency;
+      document.getElementById('checkout-change').textContent = change + ' ' + settings.currency;
+    };
+  </script>
+</body>
+</html>
