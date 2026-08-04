@@ -90,28 +90,10 @@
 <div class="card-title">
             <span>ادارة المنتجات</span>
             <div class="bulk-actions">
-              <span class="selected-count" id="selected-count">0 محدد</span>
-              <button class="btn btn-danger btn-sm" id="delete-selected-btn" style="display:none;">🗑️ حذف المحدد</button>
               <button class="btn btn-primary" id="add-product-btn">➕ اضافة منتج</button>
             </div>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th style="width:40px;"><input type="checkbox" id="select-all"></th>
-                  <th>الاسم</th>
-                  <th>الباركود</th>
-                  <th>القسم</th>
-                  <th>سعر البيع</th>
-                  <th>سعر الشراء</th>
-                  <th>المخزون</th>
-                  <th>اجراءات</th>
-                </tr>
-              </thead>
-              <tbody id="products-table-body"></tbody>
-            </table>
-          </div>
+          <div id="product-category-sections"></div>
         </div>
       </div>
 
@@ -182,9 +164,23 @@
           </div>
         </div>
 
-        <div class="card">
+<div class="card">
           <div class="card-title">🧾 اخر المبيعات</div>
           <div id="sales-history"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span>🧾 مبيعات تفصيلية</span>
+            <div class="bulk-actions">
+              <select id="detailed-sales-filter" class="filter-select">
+                <option value="today">فواتير اليوم</option>
+                <option value="7days">فواتير آخر 7 أيام</option>
+                <option value="30days">فواتير آخر 30 يوم</option>
+              </select>
+            </div>
+          </div>
+          <div id="detailed-sales"></div>
         </div>
       </div>
     </main>

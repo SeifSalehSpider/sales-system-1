@@ -13,6 +13,7 @@ const App = {
     this.renderProducts();
     this.renderDashboard();
     this.renderSalesHistory();
+    this.renderDetailedSales();
     this.navigateTo('pos');
   },
 
@@ -58,11 +59,37 @@ const App = {
       document.getElementById(id).addEventListener('input', () => this.updateProductDiscount());
     });
 
-    // Products - bulk delete
-    document.getElementById('select-all').addEventListener('change', (e) => this.toggleSelectAll(e.target.checked));
-    document.getElementById('delete-selected-btn').addEventListener('click', () => this.deleteSelectedProducts());
-    document.getElementById('products-table-body').addEventListener('change', (e) => {
+// Products - category sections (event delegation on container)
+    const catSections = document.getElementById('product-category-sections');
+    catSections.addEventListener('change', (e) => {
       if (e.target.classList.contains('row-select')) this.updateSelectionUI();
+      if (e.target.classList.contains('category-select-all-chk')) {
+        const cat = e.target.dataset.category;
+        document.querySelectorAll('.category-tbody[data-category="' + cat + '"] .row-select').forEach(cb => {
+          cb.checked = e.target.checked;
+        });
+        this.updateSelectionUI();
+      }
+    });
+    catSections.addEventListener('click', (e) => {
+      const selAll = e.target.closest('.category-select-all');
+      if (selAll) {
+        const cat = selAll.dataset.category;
+        document.querySelectorAll('.category-tbody[data-category="' + cat + '"] .row-select').forEach(cb => {
+          cb.checked = true;
+        });
+        this.updateSelectionUI();
+        return;
+      }
+      const delBtn = e.target.closest('.category-delete-selected');
+      if (delBtn) {
+        this.deleteSelectedProducts(delBtn.dataset.category);
+        return;
+      }
+      const addBtn = e.target.closest('.category-add-product');
+      if (addBtn) {
+        this.openProductModal(null, addBtn.dataset.category);
+      }
     });
 
 // Print labels
@@ -74,6 +101,11 @@ const App = {
     document.getElementById('category-filter').addEventListener('change', (e) => {
       this.currentCategory = e.target.value;
       this.renderProducts();
+    });
+
+    // Detailed sales filter
+    document.getElementById('detailed-sales-filter').addEventListener('change', () => {
+      this.renderDetailedSales();
     });
 
     // Reset data
@@ -267,67 +299,109 @@ if (discount > oldSubtotal) {
       return;
     }
 
-    const sale = SalesManager.checkout(discount, paid, payment);
+const sale = SalesManager.checkout(discount, paid, payment);
     if (sale) {
       this.closeCheckout();
       BarcodeUtil.printReceipt(sale);
       this.renderCart();
       this.renderDashboard();
       this.renderSalesHistory();
+      this.renderDetailedSales();
       this.showToast('تم تسجيل البيع بنجاح');
     }
   },
 
-  // ---------- Products Table ----------
+// ---------- Products Table ----------
   renderProductTable() {
-    const products = ProductsManager.findAll();
+    const container = document.getElementById('product-category-sections');
     const settings = Store.getSettings();
-    const container = document.getElementById('products-table-body');
-    container.innerHTML = products.map(p => `
-      <tr>
-        <td><input type="checkbox" class="row-select" value="${p.id}"></td>
-        <td>${p.name}<br><small>${p.nameEn || ''}</small></td>
-        <td>${p.barcode}</td>
-        <td>${ProductsManager.getCategoryName(p.category)}</td>
-        <td>${p.price} ${settings.currency}</td>
-        <td>${p.cost} ${settings.currency}</td>
-        <td>
-          <span class="${p.stock <= (p.minStock || 0) ? 'text-danger' : ''}">${p.stock}</span>
-        </td>
-        <td>
-          <button class="btn btn-sm btn-outline" onclick="App.editProduct('${p.id}')">تعديل</button>
-          <button class="btn btn-sm btn-danger" onclick="App.deleteProduct('${p.id}')">حذف</button>
-        </td>
-      </tr>
-    `).join('') || '<tr><td colspan="8" class="text-center">لا توجد منتجات</td></tr>';
+    const categories = ProductsManager.getCategories();
+    const products = ProductsManager.findAll();
 
-    const selectAll = document.getElementById('select-all');
-    selectAll.checked = false;
+    let html = '';
+    categories.forEach(cat => {
+      const catProducts = products.filter(p => p.category === cat.id);
+      html += `
+        <div class="category-section" data-category="${cat.id}">
+          <div class="category-section-header">
+            <div class="category-section-title">
+              <span class="category-icon">📦</span>
+              <span>${cat.name}</span>
+              <small>${cat.nameEn || ''}</small>
+              <span class="category-count">${catProducts.length} منتج</span>
+            </div>
+            <div class="bulk-actions">
+              <span class="selected-count" id="selected-count-${cat.id}">0 محدد</span>
+              <button class="btn btn-danger btn-sm category-delete-selected" data-category="${cat.id}" style="display:none;">🗑️ حذف المحدد</button>
+              <button class="btn btn-outline btn-sm category-select-all" data-category="${cat.id}">✅ تحديد الكل</button>
+              <button class="btn btn-primary btn-sm category-add-product" data-category="${cat.id}">➕ اضافة منتج</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:40px;"><input type="checkbox" class="category-select-all-chk" data-category="${cat.id}"></th>
+                  <th>الاسم</th>
+                  <th>الباركود</th>
+                  <th>سعر البيع</th>
+                  <th>سعر الشراء</th>
+                  <th>المخزون</th>
+                  <th>اجراءات</th>
+                </tr>
+              </thead>
+              <tbody class="category-tbody" data-category="${cat.id}">
+                ${catProducts.map(p => `
+                  <tr>
+                    <td><input type="checkbox" class="row-select" value="${p.id}" data-category="${cat.id}"></td>
+                    <td>${p.name}<br><small>${p.nameEn || ''}</small></td>
+                    <td>${p.barcode}</td>
+                    <td>${p.price} ${settings.currency}</td>
+                    <td>${p.cost} ${settings.currency}</td>
+                    <td>
+                      <span class="${p.stock <= (p.minStock || 0) ? 'text-danger' : ''}">${p.stock}</span>
+                    </td>
+                    <td>
+                      <button class="btn btn-sm btn-outline" onclick="App.editProduct('${p.id}')">تعديل</button>
+                      <button class="btn btn-sm btn-danger" onclick="App.deleteProduct('${p.id}')">حذف</button>
+                    </td>
+                  </tr>
+                `).join('') || '<tr><td colspan="7" class="text-center">لا توجد منتجات في هذا القسم</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+    });
+
+    container.innerHTML = html || '<div class="empty">لا توجد بيانات</div>';
     this.updateSelectionUI();
   },
 
   toggleSelectAll(checked) {
-    document.querySelectorAll('#products-table-body .row-select').forEach(cb => {
+    document.querySelectorAll('.row-select').forEach(cb => {
       cb.checked = checked;
     });
     this.updateSelectionUI();
   },
 
   updateSelectionUI() {
-    const checkboxes = document.querySelectorAll('#products-table-body .row-select');
-    const selected = document.querySelectorAll('#products-table-body .row-select:checked').length;
-    const selectAll = document.getElementById('select-all');
-    const btn = document.getElementById('delete-selected-btn');
-    const count = document.getElementById('selected-count');
+    const categories = ProductsManager.getCategories();
+    categories.forEach(cat => {
+      const checkboxes = document.querySelectorAll('.category-tbody[data-category="' + cat.id + '"] .row-select');
+      const selected = document.querySelectorAll('.category-tbody[data-category="' + cat.id + '"] .row-select:checked').length;
+      const selectAll = document.querySelector('.category-select-all-chk[data-category="' + cat.id + '"]');
+      const btn = document.querySelector('.category-delete-selected[data-category="' + cat.id + '"]');
+      const count = document.getElementById('selected-count-' + cat.id);
 
-    if (selectAll) selectAll.checked = checkboxes.length > 0 && selected === checkboxes.length;
-
-    count.textContent = selected + ' محدد';
-    btn.style.display = selected > 0 ? 'inline-flex' : 'none';
+      if (selectAll) selectAll.checked = checkboxes.length > 0 && selected === checkboxes.length;
+      if (count) count.textContent = selected + ' محدد';
+      if (btn) btn.style.display = selected > 0 ? 'inline-flex' : 'none';
+    });
   },
 
-  deleteSelectedProducts() {
-    const selected = Array.from(document.querySelectorAll('#products-table-body .row-select:checked')).map(cb => cb.value);
+  deleteSelectedProducts(categoryId) {
+    const scope = categoryId ? '.category-tbody[data-category="' + categoryId + '"] ' : '';
+    const selected = Array.from(document.querySelectorAll(scope + '.row-select:checked')).map(cb => cb.value);
     if (selected.length === 0) {
       this.showToast('لم يتم تحديد اي منتجات', true);
       return;
@@ -341,7 +415,7 @@ if (discount > oldSubtotal) {
     }
   },
 
-  openProductModal(productId) {
+  openProductModal(productId, categoryId) {
     const modal = document.getElementById('product-modal');
     const cats = ProductsManager.getCategories();
     let catOptions = cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
@@ -366,6 +440,7 @@ document.getElementById('product-oldprice').value = p.oldPrice || p.price;
       document.getElementById('product-name-en').value = '';
       document.getElementById('product-barcode').value = BarcodeUtil.generateEAN13();
       document.getElementById('product-category').innerHTML = catOptions;
+      if (categoryId) document.getElementById('product-category').value = categoryId;
       document.getElementById('product-oldprice').value = '';
       document.getElementById('product-price').value = '';
       document.getElementById('product-cost').value = '';
@@ -528,6 +603,7 @@ category: document.getElementById('product-category').value,
     document.getElementById('stat-today-profit').textContent = SalesManager.getTodayProfit() + ' ' + settings.currency;
     document.getElementById('stat-total-products').textContent = ProductsManager.findAll().length;
     document.getElementById('stat-low-stock').textContent = ProductsManager.getLowStock().length;
+    this.renderDetailedSales();
   },
 
   renderSalesHistory() {
@@ -542,6 +618,65 @@ category: document.getElementById('product-category').value,
         <span class="sale-total">${s.total} ${settings.currency}</span>
       </div>
     `).join('') || '<div class="empty">لا توجد مبيعات بعد</div>';
+  },
+
+  renderDetailedSales() {
+    const container = document.getElementById('detailed-sales');
+    if (!container) return;
+    const settings = Store.getSettings();
+    const filter = document.getElementById('detailed-sales-filter');
+    const filterVal = filter ? filter.value : 'today';
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let startDate = startOfToday;
+    if (filterVal === '7days') startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    if (filterVal === '30days') startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const sales = SalesManager.getAllSales().filter(s => {
+      const d = new Date(s.date);
+      return d >= startDate;
+    });
+
+    if (sales.length === 0) {
+      container.innerHTML = '<div class="empty">لا توجد فواتير في هذه الفترة</div>';
+      return;
+    }
+
+    container.innerHTML = sales.map(s => {
+      const itemsHtml = s.items.map(item => `
+        <tr>
+          <td>${item.name}${item.nameEn ? '<br><small>' + item.nameEn + '</small>' : ''}</td>
+          <td class="barcode-cell">${item.barcode || '—'}</td>
+          <td>${item.qty}</td>
+          <td>${item.price} ${settings.currency}</td>
+          <td>${item.total} ${settings.currency}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <div class="detailed-sale">
+          <div class="detailed-sale-header">
+            <span class="invoice-id">🧾 رقم الفاتورة: ${s.id}</span>
+            <span class="invoice-date">${new Date(s.date).toLocaleString('ar-EG')}</span>
+            <span class="invoice-total">${s.total} ${settings.currency}</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>المنتج</th>
+                  <th>الكود / الباركود</th>
+                  <th>الكمية</th>
+                  <th>السعر</th>
+                  <th>الاجمالي</th>
+                </tr>
+              </thead>
+              <tbody>${itemsHtml}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join('');
   },
 
   showToast(message, isError = false) {
