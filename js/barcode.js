@@ -185,3 +185,5 @@ const BarcodeUtil = {
     printWindow.document.close();
   }
 };
+
+window.BarcodeUtil = BarcodeUtil;

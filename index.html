@@ -19,7 +19,7 @@
       <nav class="nav">
         <a class="nav-item active" data-view="pos">
           <span class="icon">🛒</span>
-          <span>المبيعات</span>
+          <span>نقطة البيع</span>
         </a>
         <a class="nav-item" data-view="products">
           <span class="icon">📦</span>
@@ -29,13 +29,21 @@
           <span class="icon">🏷️</span>
           <span>طباعة باركود</span>
         </a>
-        <a class="nav-item" data-view="reports">
+        <a class="nav-item" data-view="analytics">
           <span class="icon">📊</span>
-          <span>تقارير</span>
+          <span>تحليلات المبيعات</span>
         </a>
-        <a class="nav-item" data-view="dashboard">
-          <span class="icon">📈</span>
-          <span>لوحة البيانات</span>
+        <a class="nav-item" data-view="ai">
+          <span class="icon">🤖</span>
+          <span>المساعد الذكي AI</span>
+        </a>
+        <a class="nav-item" data-view="reports">
+          <span class="icon">📋</span>
+          <span>الفواتير والتقارير</span>
+        </a>
+        <a class="nav-item" data-view="customers">
+          <span class="icon">👥</span>
+          <span>بيانات العملاء</span>
         </a>
       </nav>
       <div class="sidebar-footer">
@@ -48,8 +56,17 @@
     <main class="main">
       <!-- Top Bar -->
       <div class="topbar">
-        <h1>نظام البيع - الفارس</h1>
-        <div class="date"><span id="current-date"></span></div>
+        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+          <h1>نظام البيع - الفارس</h1>
+          <span class="badge" style="background:#dcfce7;color:#166534;font-size:12px;">🟢 النظام نشط</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div class="date"><span id="current-date"></span></div>
+          <button class="btn btn-outline btn-sm" id="fullscreen-btn" title="ملء الشاشة">⛶ شاشة كاملة</button>
+          <button class="btn btn-outline btn-sm" id="sound-btn" title="المؤثرات الصوتية">🔊 صوت: مفعل</button>
+          <button class="btn btn-outline btn-sm" id="backup-btn" title="تحميل نسخة احتياطية من البيانات">💾 نسخة احتياطية</button>
+          <button class="btn btn-outline btn-sm" id="settings-btn" title="إعدادات المتجر">⚙️ الإعدادات</button>
+        </div>
       </div>
 
       <!-- ==================== VIEW: POS ==================== -->
@@ -67,8 +84,15 @@
           <!-- Cart -->
           <div class="cart-panel" id="cart-panel">
             <div class="cart-header">
-              <h2>السلة</h2>
-              <span class="cart-count" id="cart-count">0</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <h2>السلة</h2>
+                <span class="cart-count" id="cart-count">0</span>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-outline btn-sm" id="hold-cart-btn" title="تعليق الفاتورة الحالية">⏸️ تعليق</button>
+                <button class="btn btn-outline btn-sm" id="held-carts-btn" title="عرض الفواتير المعلقة">📂 المعلقة (<span id="held-count">0</span>)</button>
+                <button class="btn btn-danger btn-sm" id="clear-cart-btn" title="تفريغ السلة">🗑️</button>
+              </div>
             </div>
             <div class="cart-items" id="cart-items">
               <div class="empty-cart">لا توجد منتجات في السلة</div>
@@ -87,9 +111,17 @@
       <!-- ==================== VIEW: PRODUCTS ==================== -->
       <div id="view-products" class="view">
         <div class="card">
-<div class="card-title">
-            <span>ادارة المنتجات</span>
+          <div class="card-title" style="flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <span>ادارة المنتجات</span>
+              <input type="search" id="product-mgr-search" placeholder="🔍 بحث في المنتجات بالاسم أو الباركود..." style="padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;width:260px;">
+            </div>
             <div class="bulk-actions">
+              <button class="btn btn-outline" id="manage-categories-btn" title="إضافة وتعديل وحذف أقسام المنتجات">📁 إدارة الأقسام</button>
+              <button class="btn btn-outline" id="download-template-btn" title="تحميل ملف إكسيل فارغ كنموذج جاهز لتعبئة المنتجات">📄 نموذج Excel</button>
+              <button class="btn btn-outline" id="export-products-btn" title="تصدير كافة المنتجات والمخزون إلى ملف إكسيل">📤 تصدير المنتجات Excel</button>
+              <button class="btn btn-success" id="import-excel-btn" title="رفع ملف إكسيل وإضافة المنتجات تلقائياً">📥 استيراد من Excel</button>
+              <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
               <button class="btn btn-primary" id="add-product-btn">➕ اضافة منتج</button>
             </div>
           </div>
@@ -100,9 +132,14 @@
       <!-- ==================== VIEW: PRINT LABELS ==================== -->
       <div id="view-print" class="view">
         <div class="card">
-<div class="card-title">
+          <div class="card-title">
             <span>طباعة ملصقات الباركود</span>
-            <div class="bulk-actions">
+            <div class="bulk-actions" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <select id="barcode-size-select" class="filter-select" style="padding:6px 10px; font-size:12px;">
+                <option value="single">ملصق فردي (38×25 مم حراري)</option>
+                <option value="double">ملصق مزدوج (2 أعمدة)</option>
+                <option value="sheet">صفحة A4 (24 ملصق)</option>
+              </select>
               <button class="btn btn-outline btn-sm" id="print-select-all">✅ تحديد الكل</button>
               <button class="btn btn-outline btn-sm" id="print-deselect-all">❌ الغاء التحديد</button>
               <button class="btn btn-success" id="print-labels">🖨️ طباعة المحدد</button>
@@ -134,53 +171,339 @@
         </div>
 
         <div class="card">
-          <div class="card-title">🧾 اخر المبيعات</div>
+          <div class="card-title">
+            <span>🧾 سجل المبيعات والفواتير</span>
+            <div class="bulk-actions">
+              <button class="btn btn-success btn-sm" id="export-sales-excel-btn">📥 تصدير سجل المبيعات Excel</button>
+            </div>
+          </div>
           <div id="sales-history"></div>
         </div>
       </div>
 
-      <!-- ==================== VIEW: DASHBOARD ==================== -->
-      <div id="view-dashboard" class="view">
-        <div class="stat-grid">
-          <div class="stat-card blue">
-            <div class="label">مبيعات اليوم</div>
-            <div class="value" id="stat-today-sales">0</div>
+      <!-- ==================== VIEW: ANALYTICS ==================== -->
+      <div id="view-analytics" class="view">
+        <!-- Filter Header -->
+        <div class="analytics-header">
+          <div class="analytics-title">
+            <h2>📊 لوحة تحليلات المبيعات والأرباح</h2>
+            <small class="text-muted">تحليل دوري شامل ودقيق لجميع المؤشرات المالية والتشغيلية</small>
           </div>
-          <div class="stat-card green">
-            <div class="label">ايرادات اليوم</div>
-            <div class="value" id="stat-today-revenue">0 EGP</div>
-          </div>
-          <div class="stat-card orange">
-            <div class="label">ارباح اليوم</div>
-            <div class="value" id="stat-today-profit">0 EGP</div>
-          </div>
-          <div class="stat-card blue">
-            <div class="label">اجمالي المنتجات</div>
-            <div class="value" id="stat-total-products">0</div>
-          </div>
-          <div class="stat-card red">
-            <div class="label">مخزون منخفض</div>
-            <div class="value" id="stat-low-stock">0</div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div class="period-pills" id="analytics-period-pills">
+              <button class="period-pill" data-period="today">اليوم</button>
+              <button class="period-pill" data-period="7days">أسبوعياً</button>
+              <button class="period-pill active" data-period="30days">شهرياً (30 يوم)</button>
+              <button class="period-pill" data-period="3months">٣ شهور</button>
+              <button class="period-pill" data-period="6months">٦ شهور</button>
+              <button class="period-pill" data-period="year">سنوياً</button>
+              <button class="period-pill" data-period="all">الكل</button>
+            </div>
+            <button class="btn btn-outline btn-sm" id="export-analytics-btn">📥 تصدير تقرير Excel</button>
           </div>
         </div>
 
-<div class="card">
-          <div class="card-title">🧾 اخر المبيعات</div>
-          <div id="sales-history"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-title">
-            <span>🧾 مبيعات تفصيلية</span>
-            <div class="bulk-actions">
-              <select id="detailed-sales-filter" class="filter-select">
-                <option value="today">فواتير اليوم</option>
-                <option value="7days">فواتير آخر 7 أيام</option>
-                <option value="30days">فواتير آخر 30 يوم</option>
-              </select>
+        <!-- 6 KPI Metric Cards -->
+        <div class="analytics-kpi-grid">
+          <div class="kpi-card kpi-blue">
+            <div class="kpi-icon">💰</div>
+            <div class="kpi-body">
+              <div class="kpi-label">إجمالي الإيرادات</div>
+              <div class="kpi-value" id="kpi-revenue">0 EGP</div>
+              <small class="kpi-sub" id="kpi-orders-count">0 فاتورة مسجلة</small>
             </div>
           </div>
-          <div id="detailed-sales"></div>
+
+          <div class="kpi-card kpi-green">
+            <div class="kpi-icon">📈</div>
+            <div class="kpi-body">
+              <div class="kpi-label">صافي الأرباح التقديرية</div>
+              <div class="kpi-value" id="kpi-profit">0 EGP</div>
+              <small class="kpi-sub" id="kpi-margin-text">هامش ربح: 0%</small>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-purple">
+            <div class="kpi-icon">📊</div>
+            <div class="kpi-body">
+              <div class="kpi-label">نسبة هامش الربح</div>
+              <div class="kpi-value" id="kpi-profit-margin">0%</div>
+              <small class="kpi-sub">نسبة الربح من المبيعات</small>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-cyan">
+            <div class="kpi-icon">🛒</div>
+            <div class="kpi-body">
+              <div class="kpi-label">متوسط قيمة الفاتورة</div>
+              <div class="kpi-value" id="kpi-avg-order">0 EGP</div>
+              <small class="kpi-sub">Basket Size</small>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-amber">
+            <div class="kpi-icon">📦</div>
+            <div class="kpi-body">
+              <div class="kpi-label">إجمالي القطع المباعة</div>
+              <div class="kpi-value" id="kpi-total-items">0 قطعة</div>
+              <small class="kpi-sub" id="kpi-avg-items">0 قطعة لكل طلب</small>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-rose">
+            <div class="kpi-icon">🧾</div>
+            <div class="kpi-body">
+              <div class="kpi-label">عدد العمليات الناجحة</div>
+              <div class="kpi-value" id="kpi-total-transactions">0</div>
+              <small class="kpi-sub">عمليات بيع مكتملة</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid Row 1 -->
+        <div class="chart-grid-2">
+          <div class="card chart-card">
+            <div class="card-title">
+              <span>📈 مسار المبيعات وصافي الأرباح</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="chart-timeline"></canvas>
+            </div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="card-title">
+              <span>🥧 توزيع المبيعات حسب الأقسام</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="chart-categories"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Grid Row 2 -->
+        <div class="chart-grid-2">
+          <div class="card chart-card">
+            <div class="card-title">
+              <span>🏆 أكثر المنتجات مبيعاً وتحقيقاً للإيرادات</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="chart-top-products"></canvas>
+            </div>
+          </div>
+
+          <div class="card chart-card">
+            <div class="card-title">
+              <span>⏰ تحليل نشاط المبيعات حسب أيام الأسبوع</span>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="chart-peak-times"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Products Detailed Table -->
+        <div class="card">
+          <div class="card-title">
+            <span>📋 تفاصيل أداء وربحية المنتجات في الفترة المحددة</span>
+          </div>
+          <div class="table-wrap" style="max-height: 320px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>اسم المنتج</th>
+                  <th>الكمية المباعة</th>
+                  <th>إجمالي الإيرادات</th>
+                  <th>التكلفة التقديرية</th>
+                  <th>صافي الربح</th>
+                  <th>هامش الربح</th>
+                </tr>
+              </thead>
+              <tbody id="analytics-products-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: AI ASSISTANT ==================== -->
+      <div id="view-ai" class="view">
+        <div class="ai-header-bar">
+          <div class="ai-title-wrap">
+            <div class="ai-badge-robot">🤖</div>
+            <div>
+              <h2>المحلل الذكي (فارس)</h2>
+              <small class="text-muted">نموذج ذكي لتحليل المبيعات، استخراج الرؤى التشغيلية، ومحاورتك للإجابة على استفساراتك</small>
+            </div>
+          </div>
+          <div class="ai-controls">
+            <select id="ai-period-select" class="filter-select">
+              <option value="today">تحليل: اليوم</option>
+              <option value="7days">تحليل: أسبوعياً (7 أيام)</option>
+              <option value="30days" selected>تحليل: شهرياً (30 يوماً)</option>
+              <option value="3months">تحليل: ٣ شهور</option>
+              <option value="6months">تحليل: ٦ شهور</option>
+              <option value="year">تحليل: سنة كاملة</option>
+              <option value="all">تحليل: كل الفترات</option>
+            </select>
+            <button class="btn btn-primary" id="ai-refresh-insights-btn">✨ تحديث التحليل</button>
+          </div>
+        </div>
+
+        <div class="ai-main-layout">
+          <!-- Left Column: Automatic Executive Report -->
+          <div class="ai-report-panel">
+            <div class="card" style="height: 100%;">
+              <div class="card-title" style="border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 15px;">
+                <span>📊 التقرير التحليلي التنفيذي التلقائي</span>
+                <span class="badge" style="background: #e0e7ff; color: #4338ca;">محدث ذكياً</span>
+              </div>
+              <div id="ai-executive-report-content" style="line-height: 1.7; font-size: 13.5px;"></div>
+            </div>
+          </div>
+
+          <!-- Right Column: Interactive Chat Interface -->
+          <div class="ai-chat-panel">
+            <div class="card chat-card-container">
+              <div class="chat-card-header">
+                <div class="chat-status">
+                  <span class="status-indicator online"></span>
+                  <strong>المساعد الذكي متصل ومستعد للمحاورة</strong>
+                </div>
+                <button class="btn btn-outline btn-sm" id="ai-clear-chat-btn" title="مسح المحادثة">🗑️ مسح</button>
+              </div>
+
+              <!-- Quick Prompt Chips -->
+              <div class="quick-chips-wrapper">
+                <span style="font-size: 11px; font-weight: bold; color: var(--muted); align-self: center;">💡 أسئلة سريعة:</span>
+                <button class="chip-btn" data-prompt="ما هو ملخص مبيعات اليوم وأرباحها؟">💰 مبيعات اليوم</button>
+                <button class="chip-btn" data-prompt="ما هي أكثر 5 منتجات مبيعاً وأكثرها ربحية؟">🏆 أكثر 5 منتجات مبيعاً</button>
+                <button class="chip-btn" data-prompt="ما هي المنتجات التي أوشكت على النفاد وتحتاج إعادة طلب؟">⚠️ نواقص المخزون</button>
+                <button class="chip-btn" data-prompt="قارن بين أداء الأقسام المختلفة ونسب مساهمتها">📊 مقارنة الأقسام</button>
+                <button class="chip-btn" data-prompt="ما هي أفضل أوقات الذروة وأفضل أيام الأسبوع في البيع؟">⏰ أوقات الذروة</button>
+                <button class="chip-btn" data-prompt="أعطني 3 نصائح عملية لزيادة مبيعات وأرباح المحل">🎯 نصائح لزيادة الأرباح</button>
+              </div>
+
+              <!-- Messages List -->
+              <div class="ai-chat-messages" id="ai-chat-messages"></div>
+
+              <!-- Input Area -->
+              <div class="chat-input-area">
+                <input type="text" id="ai-chat-input" placeholder="اكتب سؤالك هنا للمساعد الذكي (مثال: كم أرباح هذا الشهر؟ أو اسأل عن منتج معين)...">
+                <button class="btn btn-primary" id="ai-chat-send-btn">🚀 إرسال</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ==================== VIEW: CUSTOMERS CRM & LEADERBOARD ==================== -->
+      <div id="view-customers" class="view">
+        <div class="analytics-header">
+          <div class="analytics-title">
+            <h2>👥 قاعدة بيانات العملاء وليدربورد المشتريات</h2>
+            <small class="text-muted">متابعة تفاعل العملاء، ترتيب الأكثر شراءً، وسجل العمليات ونقاط الولاء</small>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-outline btn-sm" id="export-customers-excel-btn">📥 تصدير قائمة العملاء Excel</button>
+          </div>
+        </div>
+
+        <!-- 4 Customer KPI Cards -->
+        <div class="analytics-kpi-grid">
+          <div class="kpi-card kpi-blue">
+            <div class="kpi-icon">👥</div>
+            <div class="kpi-body">
+              <div class="kpi-label">إجمالي العملاء المسجلين</div>
+              <div class="kpi-value" id="cust-kpi-total">0 عميل</div>
+              <small class="kpi-sub" id="cust-kpi-repeat">0% نسبة تكرار الشراء</small>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-green">
+            <div class="kpi-icon">💎</div>
+            <div class="kpi-body">
+              <div class="kpi-label">عملاء VIP والمميزين</div>
+              <div class="kpi-value" id="cust-kpi-vip">0 عميل</div>
+              <small class="kpi-sub">المشتريات أكثر من 1,000 EGP</small>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-purple">
+            <div class="kpi-icon">💰</div>
+            <div class="kpi-body">
+              <div class="kpi-label">إجمالي مشتريات العملاء</div>
+              <div class="kpi-value" id="cust-kpi-revenue">0 EGP</div>
+              <small class="kpi-sub">المبيعات المرتبطة بعملاء</small>
+            </div>
+          </div>
+
+          <div class="kpi-card kpi-cyan">
+            <div class="kpi-icon">🛒</div>
+            <div class="kpi-body">
+              <div class="kpi-label">متوسط إنفاق العميل</div>
+              <div class="kpi-value" id="cust-kpi-avg">0 EGP</div>
+              <small class="kpi-sub">Average Customer Value</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Customer Inspector & Quick Selector Card -->
+        <div class="card" style="margin-bottom: 20px;">
+          <div class="card-title" style="flex-wrap:wrap; gap:12px;">
+            <span>🔍 البحث واستعراض ملف العميل</span>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <select id="customer-dropdown-select" class="filter-select" style="min-width: 250px;">
+                <option value="">-- اختر عميلاً من القائمة --</option>
+              </select>
+              <input type="search" id="customer-search-input" placeholder="أو ابحث بالاسم أو رقم الهاتف..." style="padding:6px 14px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:13px;width:240px;">
+            </div>
+          </div>
+
+          <div id="customer-profile-box" style="display:none; background:var(--light); padding:16px; border-radius:8px; border:1px solid var(--border); margin-top:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+              <div>
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+                  <h3 id="cp-name" style="font-size:18px; margin:0; font-weight:800; color:var(--dark);">اسم العميل</h3>
+                  <span class="badge" id="cp-tier" style="font-size:12px;">💎 VIP</span>
+                </div>
+                <div style="font-size:13px; color:var(--muted); line-height:1.8;">
+                  📱 الهاتف: <strong id="cp-phone" style="color:var(--dark);">010XXXXXXXX</strong> •
+                  🧾 الفواتير: <strong id="cp-orders" style="color:var(--dark);">0</strong> •
+                  💰 إجمالي المشتريات: <strong id="cp-total" style="color:var(--primary);">0 EGP</strong> •
+                  📅 آخر زيارة: <span id="cp-last-visit">—</span>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <a id="cp-whatsapp-btn" href="#" target="_blank" class="btn btn-success btn-sm" style="display:inline-flex; align-items:center; gap:6px; text-decoration:none;">
+                  💬 مراسلة واتساب
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Leaderboard Table -->
+        <div class="card">
+          <div class="card-title">
+            <span>🏆 ليدربورد كبار العملاء الأكثر شراءً (Top Customers Leaderboard)</span>
+          </div>
+          <div class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 80px;">الترتيب</th>
+                  <th>اسم العميل</th>
+                  <th>رقم الهاتف</th>
+                  <th>فئة الولاء</th>
+                  <th>عدد الفواتير</th>
+                  <th>إجمالي المشتريات</th>
+                  <th>تاريخ آخر زيارة</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody id="customers-leaderboard-tbody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </main>
@@ -190,6 +513,20 @@
   <div class="modal" id="checkout-modal">
     <div class="modal-content">
       <h2>💰 اتمام البيع</h2>
+
+      <!-- Customer Details Row -->
+      <div class="form-row" style="background: var(--light); padding: 10px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 12px;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label>👤 اسم العميل (اختياري)</label>
+          <input type="text" id="checkout-customer-name" list="existing-customers-list" placeholder="اكتب أو اختر اسم العميل...">
+          <datalist id="existing-customers-list"></datalist>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label>📱 رقم هاتف العميل (اختياري)</label>
+          <input type="tel" id="checkout-customer-phone" placeholder="010XXXXXXXX">
+        </div>
+      </div>
+
       <div class="form-group">
         <label>المجموع</label>
         <div style="font-size:22px;font-weight:bold;color:var(--primary);padding:5px 0;" id="checkout-subtotal">0 EGP</div>
@@ -288,16 +625,215 @@
     </div>
   </div>
 
+  <!-- ==================== MODAL: Excel Import ==================== -->
+  <div class="modal" id="excel-modal">
+    <div class="modal-content" style="max-width: 780px;">
+      <h2>📥 استيراد المنتجات من ملف Excel</h2>
+
+      <div id="excel-summary" style="margin-bottom: 15px; padding: 12px; background: var(--light); border-radius: 8px; font-size: 14px; border: 1px solid var(--border);"></div>
+
+      <div class="form-group" style="margin-bottom: 15px; background: #fff; padding: 10px; border: 1px solid var(--border); border-radius: 8px;">
+        <label style="font-weight: bold; margin-bottom: 8px; display: block;">⚙️ طريقة الاستيراد:</label>
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+          <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+            <input type="radio" name="excel-import-mode" value="merge" checked>
+            <span>إضافة ودمج مع المنتجات الحالية (تحديث إذا تطابق الباركود)</span>
+          </label>
+          <label style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: var(--danger);">
+            <input type="radio" name="excel-import-mode" value="replace">
+            <span>استبدال وحذف المنتجات القديمة بالكامل</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 8px; font-weight: 600; font-size: 13px; color: var(--dark);">
+        📋 معاينة المنتجات الجاهزة للاستيراد:
+      </div>
+      <div class="table-wrap" style="max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px;">
+        <table style="font-size: 12px;">
+          <thead>
+            <tr>
+              <th style="width: 30px;">#</th>
+              <th>الاسم (عربي)</th>
+              <th>الاسم (English)</th>
+              <th>القسم</th>
+              <th>سعر البيع</th>
+              <th>سعر الشراء</th>
+              <th>المخزون</th>
+              <th>الباركود</th>
+            </tr>
+          </thead>
+          <tbody id="excel-preview-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-success" id="confirm-import-excel">✅ تأكيد وحفظ المنتجات</button>
+        <button class="btn btn-outline" id="cancel-import-excel">❌ إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: Manage Categories ==================== -->
+  <div class="modal" id="categories-modal">
+    <div class="modal-content" style="max-width: 650px;">
+      <h2>📁 إدارة أقسام وفئات المنتجات</h2>
+      <div style="background: var(--light); padding: 14px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 15px;">
+        <h3 style="font-size: 14px; margin-bottom: 10px; color: var(--dark);">➕ إضافة قسم جديد</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <input type="text" id="new-category-name" placeholder="اسم القسم (عربي)..." style="flex: 1; min-width: 150px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit;">
+          <input type="text" id="new-category-name-en" placeholder="اسم القسم (English)..." style="flex: 1; min-width: 150px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit;">
+          <button class="btn btn-primary" id="save-new-category-btn">➕ إضافة</button>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px;">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>الاسم (عربي)</th>
+              <th>الاسم (English)</th>
+              <th>عدد المنتجات</th>
+              <th>إجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="categories-manage-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="close-categories-modal">❌ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: Held Carts ==================== -->
+  <div class="modal" id="held-carts-modal">
+    <div class="modal-content" style="max-width: 650px;">
+      <h2>📂 الفواتير المعلقة (Held Carts)</h2>
+      <p style="font-size: 13px; color: var(--muted); margin-bottom: 15px;">قائمة السلات التي تم تعليقها مؤقتاً لخدمة عملاء آخرين:</p>
+
+      <div id="held-carts-list" style="max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;"></div>
+
+      <div class="modal-actions">
+        <button class="btn btn-outline" id="close-held-carts-modal">❌ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: Settings ==================== -->
+  <div class="modal" id="settings-modal">
+    <div class="modal-content" style="max-width: 600px;">
+      <h2>⚙️ إعدادات المتجر ونظام البيع</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>اسم المتجر (عربي)</label>
+          <input type="text" id="setting-shop-name" placeholder="اسم المحل...">
+        </div>
+        <div class="form-group">
+          <label>اسم المتجر (English)</label>
+          <input type="text" id="setting-shop-name-en" placeholder="Shop name...">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>رقم الهاتف / واتساب</label>
+          <input type="text" id="setting-shop-phone" placeholder="010XXXXXXXX">
+        </div>
+        <div class="form-group">
+          <label>رمز العملة</label>
+          <input type="text" id="setting-currency" placeholder="EGP">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>عنوان المتجر</label>
+        <input type="text" id="setting-shop-address" placeholder="العنوان...">
+      </div>
+      <div class="form-group">
+        <label>ملاحظة أسفل الإيصال (Receipt Footer)</label>
+        <input type="text" id="setting-receipt-footer" placeholder="شكراً لزيارتكم - البضاعة المباعة ترد وتستبدل خلال 14 يوماً">
+      </div>
+      <div class="form-group" style="background: var(--light); padding: 10px; border-radius: 8px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px;">
+          <input type="checkbox" id="setting-sound-enabled" checked>
+          <span>تفعيل المؤثرات الصوتية عند مسح الباركود وإتمام المبيعات</span>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="save-settings-btn">💾 حفظ الإعدادات</button>
+        <button class="btn btn-outline" id="close-settings-modal">❌ إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: Receipt Printing ==================== -->
+  <div class="modal" id="receipt-modal">
+    <div class="modal-content" style="max-width: 420px; padding: 20px;">
+      <div id="receipt-print-area" class="thermal-receipt">
+        <div class="receipt-header">
+          <h3 id="receipt-shop-name">الفارس لمستلزمات السباحة</h3>
+          <small id="receipt-shop-en">Al-Fares Swimming & Kids Shoes</small>
+          <div id="receipt-shop-address" style="font-size: 11px; margin-top: 3px;">سنتر اللؤلؤة</div>
+          <div id="receipt-shop-phone" style="font-size: 11px;">هاتف: 010 28007300</div>
+        </div>
+        <hr class="receipt-divider">
+        <div class="receipt-meta">
+          <div>رقم الفاتورة: <strong id="receipt-id">INV-12345678</strong></div>
+          <div>التاريخ: <span id="receipt-date"></span></div>
+        </div>
+        <div class="receipt-meta" id="receipt-customer-meta" style="display:none;">
+          <div>العميل: <strong id="receipt-customer-name">—</strong></div>
+          <div>الهاتف: <span id="receipt-customer-phone">—</span></div>
+        </div>
+        <hr class="receipt-divider">
+        <table class="receipt-table">
+          <thead>
+            <tr>
+              <th>الصنف</th>
+              <th>الكمية</th>
+              <th>السعر</th>
+              <th>الإجمالي</th>
+            </tr>
+          </thead>
+          <tbody id="receipt-items-tbody"></tbody>
+        </table>
+        <hr class="receipt-divider">
+        <div class="receipt-totals">
+          <div class="receipt-row"><span>المجموع:</span> <span id="receipt-subtotal">0 EGP</span></div>
+          <div class="receipt-row" id="receipt-discount-row"><span>الخصم:</span> <span id="receipt-discount">0 EGP</span></div>
+          <div class="receipt-row bold-total"><span>الصافي المطلوب:</span> <span id="receipt-total">0 EGP</span></div>
+          <div class="receipt-row"><span>المدفوع:</span> <span id="receipt-paid">0 EGP</span></div>
+          <div class="receipt-row"><span>المتبقي:</span> <span id="receipt-change">0 EGP</span></div>
+        </div>
+        <hr class="receipt-divider">
+        <div class="receipt-footer">
+          <div id="receipt-footer-text">شكراً لزيارتكم - نسعد بخدمتكم دائماً</div>
+          <svg id="receipt-barcode-svg" style="margin-top: 6px;"></svg>
+        </div>
+      </div>
+      <div class="modal-actions" style="margin-top: 15px;">
+        <button class="btn btn-success" id="print-receipt-action-btn">🖨️ طباعة الإيصال</button>
+        <button class="btn btn-outline" id="close-receipt-modal">❌ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast notification -->
   <div class="toast" id="toast"></div>
 
   <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script src="data/seed-data.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/barcode.js"></script>
   <script src="js/products.js"></script>
   <script src="js/sales.js"></script>
+  <script src="js/analytics.js"></script>
+  <script src="js/ai-assistant.js"></script>
+  <script src="js/customers.js"></script>
   <script src="js/app.js"></script>
 
   <script>
