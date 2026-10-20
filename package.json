@@ -1,0 +1,39 @@
+{
+  "name": "sales-system",
+  "version": "1.8.0",
+  "description": " Sales Management System",
+  "main": "main.js",
+  "author": "Seif",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "release": "npm run release:win",
+    "release:win": "electron-builder --win nsis",
+    "release:dir": "electron-builder --dir",
+    "build:web": "node tools/build-web.js"
+  },
+  "devDependencies": {
+    "electron": "^43.4.1",
+    "electron-builder": "^26.0.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "jsbarcode": "^3.11.6",
+    "xlsx": "^0.18.5"
+  },
+  "build": {
+    "appId": "com.seif.salessystem",
+    "productName": "Sales System",
+    "asar": true,
+    "files": ["index.html", "main.js", "preload.js", "css/**/*", "js/**/*", "data/**/*", "package.json"],
+    "win": { "target": "nsis" },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

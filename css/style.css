@@ -194,6 +194,7 @@ body {
 .product-barcode { margin-bottom: 8px; }
 .product-name { font-weight: bold; font-size: 14px; color: var(--dark); }
 .product-name-en { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.product-size-select { width: 100%; margin: 6px 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 12px; background: #fff; color: var(--dark); }
 .product-price { font-size: 16px; font-weight: bold; color: var(--primary); }
 .product-stock { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .low-stock-badge {
@@ -332,6 +333,23 @@ tr:hover td { background: #f8fafc; }
   font-weight: bold;
   color: var(--dark);
 }
+.category-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dark);
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+}
+.category-toggle:hover { color: var(--primary); }
+.category-chevron { margin-right: auto; font-size: 18px; color: var(--primary); transition: transform .2s ease; }
+.category-section.collapsed .category-chevron { transform: rotate(180deg); }
+.category-content { overflow: hidden; }
 .category-section-title .category-icon { font-size: 18px; }
 .category-section-title small { color: var(--muted); font-weight: 400; font-size: 12px; }
 .category-count {
@@ -683,7 +701,29 @@ th input[type="checkbox"], td input[type="checkbox"] { width: 16px; height: 16px
 .chart-wrapper {
   position: relative;
   height: 270px;
+  min-height: 270px;
   width: 100%;
+}
+
+.chart-wrapper canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Monthly summary */
+.monthly-summary-card {
+  margin-top: 20px;
+}
+
+.monthly-summary-card .card-title {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.monthly-summary-card .card-title small {
+  font-weight: 400;
+  font-size: 11px;
 }
 
 /* AI View Layout */
@@ -1105,3 +1145,26 @@ th input[type="checkbox"], td input[type="checkbox"] { width: 16px; height: 16px
 .rank-1 { background: #fef08a; color: #854d0e; }
 .rank-2 { background: #e2e8f0; color: #334155; }
 .rank-3 { background: #ffedd5; color: #9a3412; }
+
+/* ---------- Customer invoices ---------- */
+.customer-name-link { color: var(--primary); cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
+.customer-name-link:hover { color: var(--primary-dark); }
+.customer-invoices-card { border-top: 3px solid var(--primary); }
+.customer-invoices-list { display: flex; flex-direction: column; gap: 8px; }
+.customer-invoice-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: #f8fafc; }
+.customer-invoice-row > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.customer-invoice-row small { color: var(--muted); font-size: 11px; }
+.edit-sale-items-wrap { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 15px; }
+.edit-sale-product-suggestions { position: relative; z-index: 5; display: flex; flex-direction: column; gap: 4px; margin-top: 5px; max-height: 240px; overflow-y: auto; }
+.edit-sale-product-suggestion { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; background: #fff; cursor: pointer; text-align: right; }
+.edit-sale-product-suggestion:hover { background: var(--light); border-color: var(--primary); }
+.edit-sale-product-suggestion small { color: var(--muted); font-size: 11px; }
+.edit-sale-no-suggestions { padding: 8px; color: var(--muted); font-size: 12px; }
+.edit-sale-items-wrap input { width: 100px; padding: 7px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; }
+.edit-sale-total-preview { background: var(--light); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-weight: 700; color: var(--dark); }
+
+.edit-sale-add-product { background: var(--light); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+.edit-sale-add-product label { display: block; font-weight: 700; font-size: 13px; margin-bottom: 7px; color: var(--dark); }
+.edit-sale-serial-row { display: flex; gap: 8px; }
+.edit-sale-serial-row input { flex: 1; min-width: 0; padding: 9px 12px; border: 1px solid var(--border); border-radius: 7px; font-family: inherit; }
+.edit-sale-add-product small { display: block; color: var(--muted); margin-top: 6px; font-size: 11px; }

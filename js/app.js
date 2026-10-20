@@ -50,8 +50,10 @@ const App = {
 
   init() {
     Store.init();
+    if (window.LicenseManager) LicenseManager.init();
     ProductsManager.load();
     SalesManager.load();
+    SalesManager.heldCarts = Store.getHeldCarts();
     CustomersManager.load();
     this.bindEvents();
     this.renderCategories();
@@ -158,6 +160,24 @@ const App = {
         this.showToast('تم تصدير ليدربورد العملاء إلى Excel 👥');
       });
     }
+    const saveSaleEditBtn = document.getElementById('save-sale-edit');
+    if (saveSaleEditBtn) saveSaleEditBtn.addEventListener('click', () => this.saveSaleEdit());
+    const cancelSaleEditBtn = document.getElementById('cancel-sale-edit');
+    if (cancelSaleEditBtn) cancelSaleEditBtn.addEventListener('click', () => this.closeSaleEditModal());
+    const addEditSaleProductBtn = document.getElementById('add-edit-sale-product');
+    if (addEditSaleProductBtn) addEditSaleProductBtn.addEventListener('click', () => this.addProductToSaleBySerial());
+    const editSaleSerial = document.getElementById('edit-sale-product-serial');
+    if (editSaleSerial) {
+      editSaleSerial.addEventListener('input', () => this.renderSaleProductSuggestions(editSaleSerial.value));
+      editSaleSerial.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); this.addProductToSaleBySerial(); }
+        if (e.key === 'Escape') this.renderSaleProductSuggestions('');
+      });
+    }
+    ['edit-sale-discount', 'edit-sale-shipping', 'edit-sale-paid'].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.addEventListener('input', () => this.updateSaleEditPreview());
+    });
 
     // Checkout Customer Auto-fill
     const custNameInput = document.getElementById('checkout-customer-name');
@@ -205,6 +225,12 @@ const App = {
     document.getElementById('confirm-sale').addEventListener('click', () => this.confirmSale());
     document.getElementById('cancel-checkout').addEventListener('click', () => this.closeCheckout());
 
+    // Show/hide customer address field depending on payment method
+    const paymentSelect = document.getElementById('checkout-payment');
+    if (paymentSelect) {
+      paymentSelect.addEventListener('change', () => this.toggleCheckoutAddress());
+    }
+
     // Products - add new
     document.getElementById('add-product-btn').addEventListener('click', () => this.openProductModal());
     document.getElementById('save-product').addEventListener('click', () => this.saveProduct());
@@ -212,11 +238,27 @@ const App = {
     document.getElementById('generate-barcode').addEventListener('click', () => {
       document.getElementById('product-barcode').value = BarcodeUtil.generateEAN13();
     });
-    ['product-oldprice', 'product-price'].forEach(id => {
-      document.getElementById(id).addEventListener('input', () => this.updateProductDiscount());
+    ['product-price'].forEach(id => {
+      const element = document.getElementById(id);
+      if (element) element.addEventListener('input', () => this.updateProductDiscount());
     });
 
     // Excel Import & Template
+    const stockExistingSelect = document.getElementById('stock-existing-product');
+    if (stockExistingSelect) this.renderStockProductOptions();
+    const stockExistingBtn = document.getElementById('stock-add-existing-btn');
+    if (stockExistingBtn) stockExistingBtn.addEventListener('click', () => this.addExistingProductToStock());
+    const stockAddBtn = document.getElementById('stock-add-product-btn');
+    if (stockAddBtn) stockAddBtn.addEventListener('click', () => this.openProductModal());
+    const stockImportBtn = document.getElementById('stock-import-excel-btn');
+    const stockFileInput = document.getElementById('stock-excel-file-input');
+    if (stockImportBtn && stockFileInput) {
+      stockImportBtn.addEventListener('click', () => { stockFileInput.value = ''; stockFileInput.click(); });
+      stockFileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) this.handleExcelFile(e.target.files[0]);
+      });
+    }
+
     const importExcelBtn = document.getElementById('import-excel-btn');
     const excelFileInput = document.getElementById('excel-file-input');
     if (importExcelBtn && excelFileInput) {
@@ -265,6 +307,16 @@ const App = {
         this.updateSelectionUI();
         return;
       }
+      const toggle = e.target.closest('.category-toggle');
+      if (toggle) {
+        const section = toggle.closest('.category-section');
+        const content = section.querySelector('.category-content');
+        const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!isOpen));
+        section.classList.toggle('collapsed', isOpen);
+        if (content) content.hidden = isOpen;
+        return;
+      }
       const delBtn = e.target.closest('.category-delete-selected');
       if (delBtn) {
         this.deleteSelectedProducts(delBtn.dataset.category);
@@ -287,10 +339,13 @@ const App = {
       this.renderProducts();
     });
 
-    // Detailed sales filter
-    document.getElementById('detailed-sales-filter').addEventListener('change', () => {
-      this.renderDetailedSales();
-    });
+    // Detailed sales filter (optional legacy element)
+    const detailedSalesFilter = document.getElementById('detailed-sales-filter');
+    if (detailedSalesFilter) {
+      detailedSalesFilter.addEventListener('change', () => {
+        this.renderDetailedSales();
+      });
+    }
 
     // Reset data
     document.getElementById('reset-data').addEventListener('click', () => {
@@ -364,6 +419,33 @@ const App = {
     });
   },
 
+  renderStockProductOptions() {
+    const select = document.getElementById('stock-existing-product');
+    if (!select) return;
+    const products = ProductsManager.findAll();
+    select.innerHTML = '<option value="">-- اختر المنتج --</option>' + products.map(p =>
+      `<option value="${p.id}">${p.name} | المخزون الحالي: ${p.stock || 0}</option>`
+    ).join('');
+  },
+
+  addExistingProductToStock() {
+    const select = document.getElementById('stock-existing-product');
+    const quantityInput = document.getElementById('stock-add-quantity');
+    const productId = select ? select.value : '';
+    const quantity = parseInt(quantityInput ? quantityInput.value : 0, 10);
+    if (!productId || !quantity || quantity < 1) {
+      alert('اختر منتجاً وأدخل كمية صحيحة.');
+      return;
+    }
+    ProductsManager.adjustStock(productId, quantity);
+    this.renderStockProductOptions();
+    this.renderProductTable();
+    this.renderProducts();
+    this.renderDashboard();
+    if (quantityInput) quantityInput.value = '1';
+    this.showToast('تمت إضافة الكمية إلى المخزون بنجاح');
+  },
+
   navigateTo(view) {
     this.currentView = view;
     document.querySelectorAll('.nav-item').forEach(n => {
@@ -384,6 +466,7 @@ const App = {
     if (view === 'analytics') this.renderAnalytics(AnalyticsManager.currentPeriod || '30days');
     if (view === 'ai') this.renderAIAssistant();
     if (view === 'customers') this.renderCustomers();
+    if (view === 'stock-entry') this.renderStockProductOptions();
   },
 
   // ---------- POS ----------
@@ -419,12 +502,18 @@ const App = {
     }
 
     container.innerHTML = products.map(p => {
-      const lowStock = p.stock <= (p.minStock || 0);
+      const lowStock = Number(p.stock) <= 1;
+      const sizes = ProductsManager.getSizes(p);
+      const sizeMenu = sizes.length ? `
+        <select class="product-size-select" id="size-select-${p.id}" onclick="event.stopPropagation()" onchange="event.stopPropagation()">
+          ${sizes.map(size => `<option value="${size}">${size}</option>`).join('')}
+        </select>` : '';
       return `
         <div class="product-card ${lowStock ? 'low-stock' : ''}" onclick="App.addToCart('${p.id}')">
           <div class="product-barcode" id="barcode-mini-${p.id}"></div>
-          <div class="product-name">${p.name}</div>
+          <div class="product-name">${ProductsManager.getDisplayName(p)}</div>
           <div class="product-name-en">${p.nameEn || ''}</div>
+          ${sizeMenu}
           <div class="product-price">${p.price} ${settings.currency}</div>
           <div class="product-stock">المخزون: ${p.stock}</div>
           ${lowStock ? '<div class="low-stock-badge">مخزون منخفض</div>' : ''}
@@ -443,12 +532,14 @@ const App = {
   addToCart(productId) {
     const p = ProductsManager.findById(productId);
     if (!p) return;
+    const sizeSelect = document.getElementById('size-select-' + productId);
+    const selectedSize = sizeSelect ? sizeSelect.value : '';
     if (p.stock <= 0) {
       SoundEffects.error();
       alert('هذا المنتج غير متوفر في المخزون');
       return;
     }
-    SalesManager.addToCart(p, 1);
+    SalesManager.addToCart({ ...p, size: selectedSize }, 1);
     SoundEffects.click();
     this.renderCart();
   },
@@ -485,17 +576,17 @@ container.innerHTML = cart.map(item => {
         return `
         <div class="cart-item">
           <div class="cart-item-info">
-            <div class="cart-item-name">${item.name}</div>
+            <div class="cart-item-name">${item.name}${item.size ? ` <small style="color:var(--primary);">(مقاس ${item.size})</small>` : ''}</div>
             <div class="cart-item-price">
               ${hasDiscount ? `<span class="old-price">${item.oldPrice} ${settings.currency}</span> ` : ''}
               <span class="new-price">${item.price} ${settings.currency}</span>
             </div>
           </div>
           <div class="cart-item-controls">
-            <button onclick="App.changeQty('${item.productId}', -1)">-</button>
+            <button onclick="App.changeQty('${item.productId}', -1, '${item.size || ''}')">-</button>
             <span>${item.qty}</span>
-            <button onclick="App.changeQty('${item.productId}', 1)">+</button>
-            <button class="remove" onclick="App.removeItem('${item.productId}')">×</button>
+            <button onclick="App.changeQty('${item.productId}', 1, '${item.size || ''}')">+</button>
+            <button class="remove" onclick="App.removeItem('${item.productId}', '${item.size || ''}')">×</button>
           </div>
           <div class="cart-item-total">${item.total} ${settings.currency}</div>
         </div>
@@ -507,20 +598,20 @@ container.innerHTML = cart.map(item => {
     document.getElementById('cart-count').textContent = cart.reduce((s, i) => s + i.qty, 0);
   },
 
-  changeQty(productId, delta) {
-    const item = SalesManager.cart.find(i => i.productId === productId);
+  changeQty(productId, delta, size = '') {
+    const item = SalesManager.cart.find(i => i.productId === productId && (i.size || '') === size);
     if (!item) return;
     const p = ProductsManager.findById(productId);
     if (delta > 0 && p && item.qty >= p.stock) {
       alert('الكمية المطلوبة اكبر من المتوفر');
       return;
     }
-    SalesManager.updateCartQty(productId, item.qty + delta);
+    SalesManager.updateCartQty(productId, item.qty + delta, size);
     this.renderCart();
   },
 
-  removeItem(productId) {
-    SalesManager.removeFromCart(productId);
+  removeItem(productId, size = '') {
+    SalesManager.removeFromCart(productId, size);
     this.renderCart();
   },
 
@@ -535,11 +626,22 @@ container.innerHTML = cart.map(item => {
     const subtotal = SalesManager.getSubtotal();
     const autoDiscount = SalesManager.getAutoDiscount();
 
+    // Reset shipping field
+    const shippingInput = document.getElementById('checkout-shipping');
+    if (shippingInput) shippingInput.value = 0;
+
     // Reset customer fields
     const custNameInput = document.getElementById('checkout-customer-name');
     const custPhoneInput = document.getElementById('checkout-customer-phone');
+    const custAddressInput = document.getElementById('checkout-customer-address');
     if (custNameInput) custNameInput.value = '';
     if (custPhoneInput) custPhoneInput.value = '';
+    if (custAddressInput) custAddressInput.value = '';
+
+    // Reset payment method and address field visibility
+    const paymentSelect = document.getElementById('checkout-payment');
+    if (paymentSelect) paymentSelect.value = 'cash';
+    this.toggleCheckoutAddress();
 
     // Populate existing customers datalist
     const datalist = document.getElementById('existing-customers-list');
@@ -550,10 +652,20 @@ container.innerHTML = cart.map(item => {
 
     document.getElementById('checkout-subtotal').textContent = oldSubtotal + ' ' + settings.currency;
     document.getElementById('checkout-discount').value = autoDiscount;
+    document.getElementById('checkout-shipping').value = 0;
     document.getElementById('checkout-paid').value = subtotal;
     document.getElementById('checkout-total').textContent = subtotal + ' ' + settings.currency;
     document.getElementById('checkout-change').textContent = '0 ' + settings.currency;
     document.getElementById('checkout-modal').classList.add('open');
+  },
+
+  // Show the customer address field only when payment is Cash on Delivery
+  toggleCheckoutAddress() {
+    const payment = document.getElementById('checkout-payment');
+    const group = document.getElementById('checkout-address-group');
+    if (!group) return;
+    const isCod = payment && payment.value === 'cod';
+    group.style.display = isCod ? 'block' : 'none';
   },
 
   closeCheckout() {
@@ -562,23 +674,30 @@ container.innerHTML = cart.map(item => {
 
   confirmSale() {
     const discount = parseFloat(document.getElementById('checkout-discount').value) || 0;
+    const shipping = Math.max(0, parseFloat(document.getElementById('checkout-shipping').value) || 0);
     const paid = parseFloat(document.getElementById('checkout-paid').value) || 0;
     const payment = document.getElementById('checkout-payment').value;
     const oldSubtotal = SalesManager.getOldSubtotal();
     const subtotal = SalesManager.getSubtotal();
     const custName = document.getElementById('checkout-customer-name')?.value || '';
     const custPhone = document.getElementById('checkout-customer-phone')?.value || '';
+    const custAddress = document.getElementById('checkout-customer-address')?.value || '';
+
+    if (payment === 'cod' && !custAddress.trim()) {
+      alert('من فضلك اكتب عنوان العميل لتوصيل الطلب (الدفع عند الاستلام)');
+      return;
+    }
 
     if (discount > oldSubtotal) {
       alert('الخصم اكبر من الاجمالي');
       return;
     }
-    if (paid < (oldSubtotal - discount)) {
+    if (paid < (oldSubtotal - discount + shipping)) {
       alert('المبلغ المدفوع اقل من الاجمالي');
       return;
     }
 
-    const sale = SalesManager.checkout(discount, paid, payment, custName, custPhone);
+    const sale = SalesManager.checkout(discount, paid, payment, custName, custPhone, shipping, custAddress);
     if (sale) {
       this.closeCheckout();
       SoundEffects.success();
@@ -605,12 +724,13 @@ container.innerHTML = cart.map(item => {
       html += `
         <div class="category-section" data-category="${cat.id}">
           <div class="category-section-header">
-            <div class="category-section-title">
+            <button class="category-toggle" type="button" data-category="${cat.id}" aria-expanded="true" title="فتح/غلق القسم">
               <span class="category-icon">📦</span>
               <span>${cat.name}</span>
               <small>${cat.nameEn || ''}</small>
               <span class="category-count">${catProducts.length} منتج</span>
-            </div>
+              <span class="category-chevron">⌃</span>
+            </button>
             <div class="bulk-actions">
               <span class="selected-count" id="selected-count-${cat.id}">0 محدد</span>
               <button class="btn btn-danger btn-sm category-delete-selected" data-category="${cat.id}" style="display:none;">🗑️ حذف المحدد</button>
@@ -618,12 +738,14 @@ container.innerHTML = cart.map(item => {
               <button class="btn btn-primary btn-sm category-add-product" data-category="${cat.id}">➕ اضافة منتج</button>
             </div>
           </div>
+          <div class="category-content">
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th style="width:40px;"><input type="checkbox" class="category-select-all-chk" data-category="${cat.id}"></th>
                   <th>الاسم</th>
+                  <th>المقاسات</th>
                   <th>الباركود</th>
                   <th>سعر البيع</th>
                   <th>سعر الشراء</th>
@@ -636,20 +758,22 @@ container.innerHTML = cart.map(item => {
                   <tr>
                     <td><input type="checkbox" class="row-select" value="${p.id}" data-category="${cat.id}"></td>
                     <td>${p.name}<br><small>${p.nameEn || ''}</small></td>
+                    <td>${ProductsManager.getSizes(p).join('، ') || '—'}</td>
                     <td>${p.barcode}</td>
                     <td>${p.price} ${settings.currency}</td>
                     <td>${p.cost} ${settings.currency}</td>
                     <td>
-                      <span class="${p.stock <= (p.minStock || 0) ? 'text-danger' : ''}">${p.stock}</span>
+                      <span class="${Number(p.stock) <= 1 ? 'text-danger' : ''}">${p.stock}</span>
                     </td>
                     <td>
                       <button class="btn btn-sm btn-outline" onclick="App.editProduct('${p.id}')">تعديل</button>
                       <button class="btn btn-sm btn-danger" onclick="App.deleteProduct('${p.id}')">حذف</button>
                     </td>
                   </tr>
-                `).join('') || '<tr><td colspan="7" class="text-center">لا توجد منتجات في هذا القسم</td></tr>'}
+                `).join('') || '<tr><td colspan="8" class="text-center">لا توجد منتجات في هذا القسم</td></tr>'}
               </tbody>
             </table>
+          </div>
           </div>
         </div>`;
     });
@@ -722,11 +846,13 @@ container.innerHTML = cart.map(item => {
       document.getElementById('product-id').value = p.id;
       document.getElementById('product-name').value = p.name;
       document.getElementById('product-name-en').value = p.nameEn || '';
+      document.getElementById('product-model-description').value = p.modelDescription || '';
+      document.getElementById('product-manufacturer').value = p.manufacturer || '';
+      document.getElementById('product-available-sizes').value = p.availableSizes || '';
       document.getElementById('product-barcode').value = p.barcode;
       document.getElementById('product-category').innerHTML = catOptions;
       document.getElementById('product-category').value = p.category;
-document.getElementById('product-oldprice').value = p.oldPrice || p.price;
-      document.getElementById('product-price').value = p.price;
+document.getElementById('product-price').value = p.price;
       document.getElementById('product-cost').value = p.cost;
       document.getElementById('product-stock').value = p.stock;
       document.getElementById('product-minstock').value = p.minStock || 0;
@@ -735,10 +861,12 @@ document.getElementById('product-oldprice').value = p.oldPrice || p.price;
       document.getElementById('product-id').value = '';
       document.getElementById('product-name').value = '';
       document.getElementById('product-name-en').value = '';
+      document.getElementById('product-model-description').value = '';
+      document.getElementById('product-manufacturer').value = '';
+      document.getElementById('product-available-sizes').value = '';
       document.getElementById('product-barcode').value = BarcodeUtil.generateEAN13();
       document.getElementById('product-category').innerHTML = catOptions;
       if (categoryId) document.getElementById('product-category').value = categoryId;
-      document.getElementById('product-oldprice').value = '';
       document.getElementById('product-price').value = '';
       document.getElementById('product-cost').value = '';
       document.getElementById('product-stock').value = '0';
@@ -758,10 +886,7 @@ document.getElementById('product-oldprice').value = p.oldPrice || p.price;
   },
 
   updateProductDiscount() {
-    const oldPrice = parseFloat(document.getElementById('product-oldprice').value) || 0;
-    const price = parseFloat(document.getElementById('product-price').value) || 0;
-    const discountEl = document.getElementById('product-discount');
-    if (discountEl) discountEl.value = Math.max(0, oldPrice - price).toFixed(2);
+    // محفوظ للتوافق مع النسخ القديمة من الواجهة؛ الربح يحسب من سعر البيع والجملة.
   },
 
   saveProduct() {
@@ -769,9 +894,12 @@ document.getElementById('product-oldprice').value = p.oldPrice || p.price;
     const data = {
       name: document.getElementById('product-name').value.trim(),
       nameEn: document.getElementById('product-name-en').value.trim(),
+      modelDescription: document.getElementById('product-model-description').value.trim(),
+      manufacturer: document.getElementById('product-manufacturer').value.trim(),
+      availableSizes: document.getElementById('product-available-sizes').value.trim(),
       barcode: document.getElementById('product-barcode').value.trim(),
 category: document.getElementById('product-category').value,
-      oldPrice: parseFloat(document.getElementById('product-oldprice').value) || parseFloat(document.getElementById('product-price').value) || 0,
+      oldPrice: parseFloat(document.getElementById('product-price').value) || 0,
       price: parseFloat(document.getElementById('product-price').value) || 0,
       cost: parseFloat(document.getElementById('product-cost').value) || 0,
       stock: parseInt(document.getElementById('product-stock').value) || 0,
@@ -795,6 +923,7 @@ category: document.getElementById('product-category').value,
       this.showToast('تم تحديث المنتج');
     } else {
       ProductsManager.add(data);
+      this.renderStockProductOptions();
       this.showToast('تم اضافة المنتج');
     }
     this.closeProductModal();
@@ -1042,6 +1171,23 @@ category: document.getElementById('product-category').value,
         }).join('');
       }
     }
+
+    // 4. Monthly products, wholesale cost, selling price and net profit
+    const monthlyTbody = document.getElementById('analytics-monthly-summary-tbody');
+    if (monthlyTbody) {
+      const monthlySummary = AnalyticsManager.getMonthlySummary(period);
+      monthlyTbody.innerHTML = monthlySummary.length === 0
+        ? '<tr><td colspan="5" class="text-center" style="padding: 30px; color: var(--muted);">لا توجد منتجات مباعة في الفترة المحددة</td></tr>'
+        : monthlySummary.map(month => `
+          <tr>
+            <td><strong>${month.label}</strong></td>
+            <td><span class="badge" style="background:#e2e8f0; color:#334155;">${month.quantity} قطعة</span></td>
+            <td>${month.wholesale.toLocaleString()} ${currency}</td>
+            <td style="font-weight:600; color:var(--primary);">${month.sales.toLocaleString()} ${currency}</td>
+            <td style="font-weight:700; color:${month.profit >= 0 ? 'var(--success)' : 'var(--danger)'};">${month.profit.toLocaleString()} ${currency}</td>
+          </tr>
+        `).join('');
+    }
   },
 
   renderAIAssistant() {
@@ -1117,6 +1263,9 @@ category: document.getElementById('product-category').value,
     const result = {
       name: '',
       nameEn: '',
+      modelDescription: '',
+      manufacturer: '',
+      availableSizes: '',
       barcode: '',
       category: '',
       oldPrice: 0,
@@ -1132,6 +1281,17 @@ category: document.getElementById('product-category').value,
       if (rawVal === undefined || rawVal === null) continue;
       const valStr = String(rawVal).trim();
       const normKey = key.trim().toLowerCase().replace(/[\s_\-\(\)\[\]\:\.\/]+/g, '');
+
+      // الأعمدة المطلوبة في ملف المنتجات: A الصنف، B وصف الموديل، C اسم المصنع...
+      if (normKey === 'الصنف' || normKey === 'اسم' || normKey === 'name' || normKey === 'product') {
+        result.name = valStr;
+      } else if (normKey === 'وصفالموديل' || normKey === 'وصفالموديل' || normKey === 'modeldescription' || normKey === 'description') {
+        result.modelDescription = valStr;
+      } else if (normKey === 'اسمالمصنع' || normKey === 'المصنع' || normKey === 'manufacturer' || normKey === 'factory') {
+        result.manufacturer = valStr;
+      } else if (normKey === 'المقاساتالمتاحة' || normKey === 'المقاسات' || normKey === 'availablesizes' || normKey === 'sizes' || normKey === 'size') {
+        result.availableSizes = valStr;
+      }
 
       // English Name
       if (
@@ -1177,15 +1337,19 @@ category: document.getElementById('product-category').value,
       // Price / Sale Price
       if (
         /^(سعرالبيع|السعر|سعرالبيعبعدالخصم|السعربعدالخصم|سعرالقطاعي|السعرالحالي|سعروالمستهلك|سعرالمنتج|price|saleprice|sellingprice|unitprice|retailprice)$/i.test(normKey) ||
-        normKey.includes('بيع') || normKey === 'السعر' || normKey === 'سعر' || normKey === 'price'
+        (normKey.includes('بيع') && !normKey.includes('عدد')) || normKey === 'السعر' || normKey === 'سعر' || normKey === 'price'
       ) {
         result.price = parseFloat(valStr) || 0;
       }
 
+      // الأعمدة القياسية الجديدة لها أولوية واضحة: D سعر الجملة، E سعر البيع
+      if (normKey === 'سعرالجملة' || normKey === 'wholesaleprice') result.cost = parseFloat(valStr) || 0;
+      if (normKey === 'سعرالبيع' || normKey === 'sellingprice') result.price = parseFloat(valStr) || 0;
+
       // Cost Price
       if (
         /^(سعرالشراء|سعرالتكلفة|التكلفة|سعرالجملة|سعرالتوريد|cost|costprice|buyprice|purchaseprice|wholesaleprice)$/i.test(normKey) ||
-        normKey.includes('شراء') || normKey.includes('تكلفة') || normKey.includes('توريد') || normKey.includes('جملة') || normKey.includes('cost')
+        normKey.includes('شراء') || normKey.includes('تكلفة') || normKey.includes('توريد') || (normKey.includes('جملة') && !normKey.includes('عدد')) || normKey.includes('cost')
       ) {
         result.cost = parseFloat(valStr) || 0;
       }
@@ -1209,6 +1373,14 @@ category: document.getElementById('product-category').value,
       }
     }
 
+    // دمج العمودين A و B داخل اسم المنتج كما هو مطلوب:
+    // A = الصنف + B = وصف الموديل
+    if (result.modelDescription && result.name) {
+      result.name = result.name + ' - ' + result.modelDescription;
+    } else if (!result.name && result.modelDescription) {
+      result.name = result.modelDescription;
+    }
+
     if (result.price > 0 && result.oldPrice === 0) {
       result.oldPrice = result.price;
     } else if (result.oldPrice > 0 && result.price === 0) {
@@ -1228,28 +1400,59 @@ category: document.getElementById('product-category').value,
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
           alert('الملف فارغ ولا يحتوي على صفحات عمل.');
           return;
         }
 
-        const firstSheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[firstSheetName];
-        const rawRows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+        const requiredHeaders = ['الصنف', 'وصف الموديل', 'اسم المصنع', 'سعر الجملة', 'سعر البيع', 'الربح', 'المخزون', 'سعر الجملة *العدد', 'سعر البيع*العدد', 'الربح*العدد', 'المقاسات المتاحة'];
+        const parsedProducts = [];
+        let totalRows = 0;
 
-        if (!rawRows || rawRows.length === 0) {
+        // قراءة كل أوراق العمل، وليس الورقة الأولى فقط.
+        workbook.SheetNames.forEach(sheetName => {
+          const sheet = workbook.Sheets[sheetName];
+          const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+          if (!matrix || matrix.length === 0) return;
+          totalRows += matrix.length;
+
+          const firstRow = matrix[0] || [];
+          const hasHeaders = firstRow.some(value => requiredHeaders.indexOf(String(value).trim()) !== -1);
+          const rawRows = (hasHeaders ? matrix.slice(1) : matrix).map(values => {
+            const row = {};
+            requiredHeaders.forEach((header, index) => { row[header] = values[index] === undefined ? '' : values[index]; });
+            return row;
+          });
+
+          // اسم ورقة العمل يصبح القسم الافتراضي لمنتجاتها، ويمكن تغييره بفاصل داخل الورقة.
+          let currentCategory = String(sheetName).trim() || 'عام';
+          rawRows.forEach(row => {
+            const values = requiredHeaders.map(header => row[header] === undefined ? '' : row[header]);
+            const nonEmptyValues = values.filter(value => String(value).trim() !== '');
+            const numericProductValues = [values[3], values[4], values[5], values[6], values[7], values[8], values[9]]
+              .filter(value => String(value).trim() !== '' && !isNaN(parseFloat(value))).length;
+            const firstValue = String(values[0] || '').trim();
+
+            // صف الفاصل الذي يحتوي على اسم فقط يحدد القسم ولا يتم استيراده كمنتج.
+            if (firstValue && nonEmptyValues.length === 1 && numericProductValues === 0) {
+              currentCategory = firstValue;
+              return;
+            }
+
+            const item = this.mapExcelRow(row);
+            // استيراد المنتجات فقط وتجاهل الصفوف الفارغة والعناوين والإجماليات.
+            if (item.name && item.name.trim().length > 0 && numericProductValues > 0) {
+              item.category = currentCategory;
+              parsedProducts.push(item);
+            }
+          });
+        });
+
+        if (totalRows === 0) {
           alert('لم يتم العثور على أي صفوف أو بيانات داخل الملف.');
           return;
         }
-
-        const parsedProducts = [];
-        rawRows.forEach(row => {
-          const item = this.mapExcelRow(row);
-          if (item.name && item.name.trim().length > 0) {
-            parsedProducts.push(item);
-          }
-        });
 
         if (parsedProducts.length === 0) {
           alert('لم يتم العثور على منتجات صالحة في الملف.\nيرجى التأكد من أن الملف يحتوي على عمود يحمل اسم المنتج (مثل "اسم المنتج" أو "Name").');
@@ -1282,7 +1485,7 @@ category: document.getElementById('product-category').value,
     tbody.innerHTML = items.map((p, idx) => `
       <tr>
         <td style="color:var(--muted);">${idx + 1}</td>
-        <td><strong>${p.name}</strong></td>
+        <td><strong>${p.name}</strong>${ProductsManager.getSizes(p).length ? `<br><small style="color:var(--primary);">المقاسات: ${ProductsManager.getSizes(p).join('، ')}</small>` : ''}</td>
         <td><small style="color:var(--muted);">${p.nameEn || '—'}</small></td>
         <td><span class="badge" style="background:#e0f2fe;color:#0369a1;">${p.category || 'عام'}</span></td>
         <td style="font-weight:600; color:var(--primary);">${p.price} ${settings.currency}</td>
@@ -1342,62 +1545,26 @@ category: document.getElementById('product-category').value,
 
     const sampleData = [
       {
-        'اسم المنتج': 'نظارة سباحة احترافية للأطفال',
-        'الاسم بالانجليزية': 'Kids Pro Swim Goggles',
-        'القسم': 'مستلزمات السباحة',
+        'الصنف': 'تي شيرت أطفال',
+        'وصف الموديل': 'قطن نصف كم',
+        'اسم المصنع': 'مصنع الفارس',
+        'سعر الجملة': 90,
         'سعر البيع': 150,
-        'السعر قبل الخصم': 180,
-        'سعر الشراء': 90,
+        'الربح': 60,
         'المخزون': 35,
-        'الحد الادنى': 5,
-        'الباركود': '6221001010119'
-      },
-      {
-        'اسم المنتج': 'كوتشي اطفال سبايدرمان مقاس 30',
-        'الاسم بالانجليزية': 'Kids Spiderman Shoes Size 30',
-        'القسم': 'احذية الاطفال',
-        'سعر البيع': 320,
-        'السعر قبل الخصم': 380,
-        'سعر الشراء': 210,
-        'المخزون': 20,
-        'الحد الادنى': 4,
-        'الباركود': ''
-      },
-      {
-        'اسم المنتج': 'مايوه سباحة بناتي قطعة واحدة',
-        'الاسم بالانجليزية': 'Girls One Piece Swimsuit',
-        'القسم': 'مستلزمات السباحة',
-        'سعر البيع': 260,
-        'السعر قبل الخصم': 300,
-        'سعر الشراء': 160,
-        'المخزون': 25,
-        'الحد الادنى': 5,
-        'الباركود': ''
-      },
-      {
-        'اسم المنتج': 'طوق سباحة اطفال شكل بطة',
-        'الاسم بالانجليزية': 'Kids Duck Swimming Ring',
-        'القسم': 'اكسسوارات',
-        'سعر البيع': 95,
-        'السعر قبل الخصم': 120,
-        'سعر الشراء': 55,
-        'المخزون': 40,
-        'الحد الادنى': 8,
-        'الباركود': ''
+        'سعر الجملة *العدد': 3150,
+        'سعر البيع*العدد': 5250,
+        'الربح*العدد': 2100,
+        'المقاسات المتاحة': '4، 6، 8، 10'
       }
     ];
 
     const ws = XLSX.utils.json_to_sheet(sampleData);
+    ws['!rtl'] = true;
+    ws['!views'] = [{ rightToLeft: true }];
     ws['!cols'] = [
-      { wch: 30 }, // اسم المنتج
-      { wch: 28 }, // الاسم بالانجليزية
-      { wch: 20 }, // القسم
-      { wch: 14 }, // سعر البيع
-      { wch: 16 }, // السعر قبل الخصم
-      { wch: 14 }, // سعر الشراء
-      { wch: 12 }, // المخزون
-      { wch: 14 }, // الحد الادنى
-      { wch: 18 }  // الباركود
+      { wch: 30 }, { wch: 35 }, { wch: 25 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 22 }
     ];
 
     const wb = XLSX.utils.book_new();
@@ -1443,11 +1610,28 @@ category: document.getElementById('product-category').value,
       sales: SalesManager.getAllSales(),
       settings: Store.getSettings()
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const json = JSON.stringify(data, null, 2);
+    const fileName = `نسخة_احتياطية_الفارس_${new Date().toISOString().split('T')[0]}.json`;
+    // Web version with a connected data file: save into it so the next load
+    // reconnects fast instead of re-picking the file every visit.
+    if (!window.nativeStore && window.showSaveFilePicker) {
+      window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+      }).then(async handle => {
+        const writable = await handle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        if (window.browserFlush) await window.browserFlush.attach(handle);
+        this.showToast('تم حفظ النسخة الاحتياطية وربطها بالبرنامج بنجاح 💾');
+      }).catch(() => {});
+      return;
+    }
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `نسخة_احتياطية_الفارس_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
     this.showToast('تم تحميل النسخة الاحتياطية بنجاح 💾');
@@ -1696,10 +1880,15 @@ category: document.getElementById('product-category').value,
     // Customer metadata on receipt
     const custMeta = document.getElementById('receipt-customer-meta');
     if (custMeta) {
-      if (sale.customerName || sale.customerPhone) {
+      if (sale.customerName || sale.customerPhone || sale.customerAddress) {
         custMeta.style.display = 'flex';
         document.getElementById('receipt-customer-name').textContent = sale.customerName || 'عميل نقدي';
         document.getElementById('receipt-customer-phone').textContent = sale.customerPhone || '—';
+        const addrRow = document.getElementById('receipt-customer-address-row');
+        if (addrRow) {
+          addrRow.style.display = sale.customerAddress ? 'block' : 'none';
+          if (sale.customerAddress) document.getElementById('receipt-customer-address').textContent = sale.customerAddress;
+        }
       } else {
         custMeta.style.display = 'none';
       }
@@ -1722,6 +1911,13 @@ category: document.getElementById('product-category').value,
       document.getElementById('receipt-discount').textContent = `-${sale.discount} ${currency}`;
     } else {
       discRow.style.display = 'none';
+    }
+    const shippingRow = document.getElementById('receipt-shipping-row');
+    if (sale.shipping > 0) {
+      shippingRow.style.display = 'flex';
+      document.getElementById('receipt-shipping').textContent = `${sale.shipping} ${currency}`;
+    } else {
+      shippingRow.style.display = 'none';
     }
     document.getElementById('receipt-total').textContent = `${sale.total} ${currency}`;
     document.getElementById('receipt-paid').textContent = `${sale.paid || sale.total} ${currency}`;
@@ -1801,6 +1997,8 @@ category: document.getElementById('product-category').value,
 
     // 3. Leaderboard Table
     this.renderLeaderboardTable();
+    const selected = document.getElementById('customer-dropdown-select')?.value;
+    if (selected) this.renderCustomerInvoices(selected);
   },
 
   renderLeaderboardTable(filterQuery = '') {
@@ -1835,7 +2033,7 @@ category: document.getElementById('product-category').value,
       return `
         <tr>
           <td>${rankHtml}</td>
-          <td><strong>${c.name}</strong></td>
+          <td><strong class="customer-name-link" onclick="App.inspectCustomer('${c.id}')">${c.name}</strong></td>
           <td>${c.phone ? `<code>${c.phone}</code>` : '<span style="color:var(--muted);">—</span>'}</td>
           <td><span class="badge ${c.tier.class}">${c.tier.label}</span></td>
           <td><span class="badge" style="background:#f1f5f9; color:#475569;">${c.ordersCount || 1} فواتير</span></td>
@@ -1885,6 +2083,7 @@ category: document.getElementById('product-category').value,
       waBtn.style.display = 'none';
     }
 
+    this.renderCustomerInvoices(customerId);
     const box = document.getElementById('customer-profile-box');
     box.style.display = 'block';
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1892,6 +2091,177 @@ category: document.getElementById('product-category').value,
     // Sync dropdown value
     const dropdown = document.getElementById('customer-dropdown-select');
     if (dropdown) dropdown.value = customerId;
+  },
+
+  renderCustomerInvoices(customerId) {
+    const container = document.getElementById('customer-invoices-list');
+    const summary = document.getElementById('customer-invoices-summary');
+    if (!container) return;
+    const customer = CustomersManager.findById(customerId);
+    const sales = customer ? SalesManager.getAllSales().filter(s => {
+      const samePhone = customer.phone && s.customerPhone && customer.phone.replace(/\s+/g, '') === s.customerPhone.replace(/\s+/g, '');
+      const sameName = customer.name && s.customerName && customer.name.trim().toLowerCase() === s.customerName.trim().toLowerCase();
+      return samePhone || sameName;
+    }) : [];
+    const currency = Store.getSettings().currency || 'EGP';
+    if (!customer) {
+      summary.textContent = 'اختر عميلاً لعرض فواتيره';
+      container.innerHTML = '<div class="empty">اضغط على اسم العميل أو زر «عرض» لعرض فواتيره</div>';
+      return;
+    }
+    summary.textContent = `${sales.length} فاتورة • ${customer.name}`;
+    container.innerHTML = sales.length ? sales.map(s => `
+      <div class="customer-invoice-row">
+        <div><strong class="invoice-id">${s.id}</strong><small>${new Date(s.date).toLocaleString('ar-EG')}</small><span>${(s.items || []).reduce((sum, i) => sum + (i.qty || 0), 0)} قطعة</span></div>
+        <div><strong class="invoice-total">${s.total} ${currency}</strong><button class="btn btn-sm btn-outline" onclick="App.openSaleEditModal('${s.id}')">✏️ تعديل</button><button class="btn btn-sm btn-outline" onclick="App.reprintSale('${s.id}')">🖨️ طباعة</button></div>
+      </div>`).join('') : '<div class="empty">لا توجد فواتير مرتبطة بهذا العميل</div>';
+  },
+
+  openSaleEditModal(saleId) {
+    const sale = SalesManager.getAllSales().find(s => s.id === saleId);
+    if (!sale) return;
+    document.getElementById('edit-sale-id').value = sale.id;
+    document.getElementById('edit-sale-customer-name').value = sale.customerName || '';
+    document.getElementById('edit-sale-customer-phone').value = sale.customerPhone || '';
+    document.getElementById('edit-sale-product-serial').value = '';
+    document.getElementById('edit-sale-product-serial').removeAttribute('data-replace-index');
+    this.renderSaleProductSuggestions('');
+    document.getElementById('edit-sale-discount').value = sale.discount || 0;
+    document.getElementById('edit-sale-shipping').value = sale.shipping || 0;
+    document.getElementById('edit-sale-paid').value = sale.paid || sale.total || 0;
+    document.getElementById('edit-sale-payment').value = sale.payment || 'cash';
+    this.renderSaleEditItems(sale.items || []);
+    document.getElementById('sale-edit-modal').classList.add('open');
+    this.updateSaleEditPreview();
+  },
+
+  addProductToSaleBySerial() {
+    const input = document.getElementById('edit-sale-product-serial');
+    const serial = (input?.value || '').trim();
+    if (!serial) { this.showToast('اكتب اسم أو سيريال أو باركود المنتج أولاً', true); return; }
+    const exactProduct = ProductsManager.findById(serial) || ProductsManager.findByBarcode(serial);
+    const matchingStockProducts = ProductsManager.search(serial).filter(item => (Number(item.stock) || 0) > 0);
+    const product = exactProduct || matchingStockProducts[0];
+    if (exactProduct && (Number(exactProduct.stock) || 0) <= 0) {
+      this.showToast('المنتج موجود لكنه غير متوفر في المخزون حالياً', true);
+      return;
+    }
+    if (!product) { this.showToast('لم يتم العثور على منتج متوفر بهذا الاسم أو السيريال أو الباركود', true); return; }
+    if (!exactProduct && matchingStockProducts.length > 1) {
+      this.showToast('يوجد أكثر من منتج متوفر بهذا البحث؛ اكتب الاسم بشكل أدق', true);
+      return;
+    }
+    const sale = SalesManager.getAllSales().find(s => s.id === document.getElementById('edit-sale-id').value);
+    if (!sale) return;
+    const currentItems = this.getSaleEditItems();
+    const replacementIndex = input.dataset.replaceIndex;
+    const replacementItem = { productId: product.id, name: product.name, nameEn: product.nameEn || '', barcode: product.barcode || '', oldPrice: product.price, price: product.price, qty: 1, total: product.price };
+    if (replacementIndex !== undefined && currentItems[Number(replacementIndex)]) {
+      currentItems[Number(replacementIndex)] = replacementItem;
+      delete input.dataset.replaceIndex;
+    } else {
+      const existing = currentItems.find(item => item.productId === product.id);
+      if (existing) {
+        existing.qty += 1;
+        existing.total = existing.qty * existing.price;
+      } else currentItems.push(replacementItem);
+    }
+    this.renderSaleEditItems(currentItems);
+    input.value = '';
+    this.renderSaleProductSuggestions('');
+    this.updateSaleEditPreview();
+  },
+
+  renderSaleProductSuggestions(query) {
+    const container = document.getElementById('edit-sale-product-suggestions');
+    if (!container) return;
+    const value = (query || '').trim();
+    if (!value) { container.innerHTML = ''; return; }
+    const matches = ProductsManager.search(value).filter(item => (Number(item.stock) || 0) > 0).slice(0, 8);
+    container.innerHTML = matches.length ? matches.map(item => `<button type="button" class="edit-sale-product-suggestion" data-product-id="${item.id}"><strong>${item.name}</strong><small>${item.nameEn || ''} • المخزون: ${item.stock} • السعر: ${item.price}</small></button>`).join('') : '<div class="edit-sale-no-suggestions">لا توجد منتجات متوفرة بهذا البحث</div>';
+    container.querySelectorAll('.edit-sale-product-suggestion').forEach(button => button.addEventListener('click', () => {
+      const product = ProductsManager.findById(button.dataset.productId);
+      if (!product) return;
+      const input = document.getElementById('edit-sale-product-serial');
+      input.value = product.id;
+      this.renderSaleProductSuggestions('');
+      this.addProductToSaleBySerial();
+    }));
+  },
+
+  renderSaleEditItems(items) {
+    document.getElementById('edit-sale-items-tbody').innerHTML = items.map((item, index) => `
+      <tr data-product-id="${item.productId}"><td>${item.name}<br><small class="barcode-cell">السيريال: ${item.productId} | الباركود: ${item.barcode || '—'}</small></td><td><input class="edit-item-qty" data-index="${index}" type="number" min="1" value="${item.qty || 1}"></td><td><input class="edit-item-price" data-index="${index}" type="number" min="0" step="0.01" value="${item.price || 0}"></td><td class="edit-item-total" data-index="${index}">${((item.qty || 0) * (item.price || 0)).toFixed(2)}</td><td><button type="button" class="btn btn-sm btn-outline edit-remove-item" data-index="${index}">🗑️ إزالة</button><button type="button" class="btn btn-sm btn-outline edit-replace-item" data-index="${index}">🔄 تبديل</button></td></tr>`).join('');
+    document.querySelectorAll('.edit-remove-item').forEach(button => button.addEventListener('click', () => this.removeSaleEditItem(Number(button.dataset.index))));
+    document.querySelectorAll('.edit-replace-item').forEach(button => button.addEventListener('click', () => this.prepareSaleItemReplacement(Number(button.dataset.index))));
+    document.querySelectorAll('#edit-sale-items-tbody input').forEach(input => input.addEventListener('input', () => this.updateSaleEditPreview()));
+  },
+
+  closeSaleEditModal() {
+    document.getElementById('sale-edit-modal').classList.remove('open');
+  },
+
+  removeSaleEditItem(index) {
+    const items = this.getSaleEditItems();
+    if (!items[index]) return;
+    if (!confirm(`هل تريد إزالة ${items[index].name} كـ ${document.getElementById('edit-sale-change-type').value === 'return' ? 'مرتجع' : 'تبديل'}؟`)) return;
+    items.splice(index, 1);
+    this.renderSaleEditItems(items);
+    this.updateSaleEditPreview();
+  },
+
+  prepareSaleItemReplacement(index) {
+    const items = this.getSaleEditItems();
+    if (!items[index]) return;
+    document.getElementById('edit-sale-change-type').value = 'exchange';
+    const input = document.getElementById('edit-sale-product-serial');
+    input.dataset.replaceIndex = index;
+    input.focus();
+    this.showToast('اكتب سيريال أو باركود المنتج البديل ثم اضغط إضافة');
+  },
+
+  getSaleEditItems() {
+    const sale = SalesManager.getAllSales().find(s => s.id === document.getElementById('edit-sale-id').value);
+    if (!sale) return [];
+    return Array.from(document.querySelectorAll('#edit-sale-items-tbody tr')).map((row, index) => {
+      const productId = row.dataset.productId;
+      const oldItem = (sale.items || []).find(item => item.productId === productId) || {};
+      const product = ProductsManager.findById(productId) || {};
+      const qty = Math.max(1, parseInt(row.querySelector('.edit-item-qty')?.value, 10) || 1);
+      const price = Math.max(0, parseFloat(row.querySelector('.edit-item-price')?.value) || 0);
+      return { ...oldItem, productId, name: oldItem.name || product.name, nameEn: oldItem.nameEn || product.nameEn || '', barcode: oldItem.barcode || product.barcode || '', oldPrice: oldItem.oldPrice || price, price, qty, total: qty * price };
+    });
+  },
+
+  updateSaleEditPreview() {
+    const items = this.getSaleEditItems();
+    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+    const discount = Math.min(subtotal, Math.max(0, parseFloat(document.getElementById('edit-sale-discount')?.value) || 0));
+    const shipping = Math.max(0, parseFloat(document.getElementById('edit-sale-shipping')?.value) || 0);
+    const total = subtotal - discount + shipping;
+    const paid = Math.max(0, parseFloat(document.getElementById('edit-sale-paid')?.value) || 0);
+    document.querySelectorAll('.edit-item-total').forEach((el, index) => { if (items[index]) el.textContent = items[index].total.toFixed(2); });
+    const preview = document.getElementById('edit-sale-total-preview');
+    if (preview) preview.textContent = `المجموع: ${subtotal.toFixed(2)} • الخصم: ${discount.toFixed(2)} • الشحن: ${shipping.toFixed(2)} • الصافي: ${total.toFixed(2)} • الباقي: ${Math.max(0, paid - total).toFixed(2)} ${Store.getSettings().currency || 'EGP'}`;
+  },
+
+  saveSaleEdit() {
+    const saleId = document.getElementById('edit-sale-id').value;
+    const items = this.getSaleEditItems();
+    const discount = parseFloat(document.getElementById('edit-sale-discount').value) || 0;
+    const shipping = Math.max(0, parseFloat(document.getElementById('edit-sale-shipping').value) || 0);
+    const paid = parseFloat(document.getElementById('edit-sale-paid').value) || 0;
+    const sale = SalesManager.getAllSales().find(s => s.id === saleId);
+    const subtotal = items.reduce((sum, item) => sum + item.total, 0);
+    if (discount > subtotal || paid < subtotal - discount + shipping) { alert('راجع الخصم والشحن والمبلغ المدفوع؛ المبلغ المدفوع يجب أن يغطي صافي الفاتورة.'); return; }
+    const changeType = document.getElementById('edit-sale-change-type').value;
+    const updated = SalesManager.updateSale(saleId, { items, discount, shipping, paid, changeType, payment: document.getElementById('edit-sale-payment').value, customerName: document.getElementById('edit-sale-customer-name').value, customerPhone: document.getElementById('edit-sale-customer-phone').value });
+    if (!updated) { alert('لا يمكن حفظ التعديل: الكمية الجديدة أكبر من المخزون المتاح.'); return; }
+    this.closeSaleEditModal();
+    this.renderProducts(); this.renderProductTable(); this.renderSalesHistory(); this.renderDetailedSales(); this.renderCustomers();
+    const updatedCustomer = CustomersManager.findByName(updated.customerName) || CustomersManager.findByPhone(updated.customerPhone);
+    this.inspectCustomer(updatedCustomer?.id || '');
+    this.showToast(`تم تعديل الفاتورة ${sale ? sale.id : ''} كـ ${changeType === 'return' ? 'مرتجع' : 'تبديل'} وتحديث المخزون والتقارير`);
   },
 
   // ---------- Exports ----------

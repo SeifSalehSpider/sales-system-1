@@ -45,6 +45,7 @@ const BarcodeUtil = {
   printLabels(products) {
     if (!products || products.length === 0) return;
     const settings = Store.getSettings();
+    const vendorScriptUrl = new URL('js/vendor-jsbarcode.all.min.js', window.location.href).href;
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (!printWindow) {
       alert('Please allow popups to print labels');
@@ -100,7 +101,7 @@ const BarcodeUtil = {
             setTimeout(function(){ window.print(); }, 500);
           };
         <\/script>
-        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
+        <script src="${vendorScriptUrl}"><\/script>
       </body>
       </html>
     `);
@@ -169,12 +170,16 @@ const BarcodeUtil = {
           </table>
           <div class="totals">
             <div><span>الاجمالي</span><span>${sale.subtotal} ${settings.currency}</span></div>
-            <div><span>الخصم</span><span>${sale.discount} ${settings.currency}</span></div>
+            <div><span>الخصم</span><span>${sale.discount || 0} ${settings.currency}</span></div>
+            <div><span>تكلفة الشحن</span><span>${sale.shipping || 0} ${settings.currency}</span></div>
             <div class="grand"><span>الصافي</span><span>${sale.total} ${settings.currency}</span></div>
             <div><span>المدفوع</span><span>${sale.paid} ${settings.currency}</span></div>
             <div><span>الباقي</span><span>${sale.change} ${settings.currency}</span></div>
             <div><span>طريقة الدفع</span><span>${paymentLabel}</span></div>
+            ${sale.customerName ? `<div><span>العميل</span><span>${sale.customerName}</span></div>` : ''}
+            ${sale.customerPhone ? `<div><span>الهاتف</span><span>${sale.customerPhone}</span></div>` : ''}
           </div>
+          ${sale.customerAddress ? `<div class="divider"></div><div class="meta" style="text-align:right;"><strong>عنوان التوصيل:</strong> ${sale.customerAddress}</div>` : ''}
           <div class="divider"></div>
           <div class="thank">شكرا لزيارتكم! نتمنى لكم يوما سعيدا</div>
         </div>

@@ -72,6 +72,29 @@ const CustomersManager = {
     return customer;
   },
 
+  rebuildFromSales(sales) {
+    const previous = this.private.customers || [];
+    const byKey = {};
+    (sales || []).forEach(sale => {
+      const name = (sale.customerName || '').trim();
+      const phone = (sale.customerPhone || '').trim();
+      if (!name && !phone) return;
+      const key = phone.replace(/\s+/g, '') || name.toLowerCase();
+      if (!byKey[key]) {
+        const old = previous.find(c => (phone && c.phone && c.phone.replace(/\s+/g, '') === phone.replace(/\s+/g, '')) || (name && c.name && c.name.toLowerCase() === name.toLowerCase()));
+        byKey[key] = { id: old?.id || ('cust_' + Date.now() + Math.floor(Math.random() * 1000)), name: name || old?.name || 'عميل', phone: phone || old?.phone || '', totalSpent: 0, ordersCount: 0, firstVisit: old?.firstVisit || sale.date, lastVisit: sale.date, invoices: [] };
+      }
+      const customer = byKey[key];
+      customer.totalSpent += parseFloat(sale.total) || 0;
+      customer.ordersCount += 1;
+      customer.lastVisit = new Date(customer.lastVisit) > new Date(sale.date) ? customer.lastVisit : sale.date;
+      if (!customer.invoices.includes(sale.id)) customer.invoices.push(sale.id);
+    });
+    this.private.customers = Object.values(byKey);
+    Store.saveCustomers(this.private.customers);
+    return this.private.customers;
+  },
+
   getTier(totalSpent) {
     const val = parseFloat(totalSpent) || 0;
     if (val >= 5000) return { label: '💎 VIP ماسي', class: 'tier-diamond' };

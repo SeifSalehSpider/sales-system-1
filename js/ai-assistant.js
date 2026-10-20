@@ -3,6 +3,25 @@ const AIAssistant = {
   chatHistory: [],
   currentPeriod: '30days',
 
+  normalizeDigits(value) {
+    return String(value || '').replace(/[٠-٩]/g, digit => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit)).replace(/[۰-۹]/g, digit => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit));
+  },
+
+  formatMoney(value, currency) {
+    return `${(Number(value) || 0).toLocaleString('ar-EG')} ${currency}`;
+  },
+
+  escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+    }[character]));
+  },
+
+  getProductSizes(product) {
+    if (typeof ProductsManager.getSizes === 'function') return ProductsManager.getSizes(product);
+    return ProductsManager.parseSizes ? ProductsManager.parseSizes(product?.availableSizes) : [];
+  },
+
   getPeriodLabel(period) {
     const labels = {
       'today': 'اليوم',
@@ -24,6 +43,7 @@ const AIAssistant = {
   // Generates automatic structured executive insights
   generateInsights(period = this.currentPeriod) {
     const metrics = AnalyticsManager.getMetrics(period);
+    const safeMetrics = metrics || { totalRevenue: 0, totalCost: 0, totalProfit: 0, profitMargin: 0, totalOrders: 0, totalItems: 0, avgOrderValue: 0, productStats: [], topProducts: [] };
     const catData = AnalyticsManager.getCategoryData(period);
     const peakData = AnalyticsManager.getHourlyAndWeekdayData(period);
     const allProducts = ProductsManager.findAll() || [];
@@ -31,15 +51,15 @@ const AIAssistant = {
     const currency = settings.currency || 'EGP';
     const periodName = this.getPeriodLabel(period);
 
-    // Identify low stock items with sales activity
-    const lowStockAlerts = allProducts.filter(p => p.stock <= (p.minStock || 5));
-    
+    // تنبيه المخزون المنخفض عند بقاء قطعة واحدة أو أقل.
+    const lowStockAlerts = allProducts.filter(p => Number(p.stock) <= 1);
+
     // Identify slow moving items (products with 0 sales in period)
-    const soldProductIds = new Set(metrics.productStats.map(p => p.id));
+    const soldProductIds = new Set((safeMetrics.productStats || []).map(p => p.id));
     const slowMoving = allProducts.filter(p => !soldProductIds.has(p.id));
 
     // Top profitable product
-    const topByProfit = [...metrics.productStats].sort((a, b) => b.profit - a.profit);
+    const topByProfit = [...(safeMetrics.productStats || [])].sort((a, b) => b.profit - a.profit);
     const starProduct = topByProfit.length > 0 ? topByProfit[0] : null;
 
     // Build recommendations
@@ -54,8 +74,8 @@ const AIAssistant = {
     if (slowMoving.length > 0) {
       recommendations.push(`🏷️ <strong>تصفية الرواكد:</strong> يوجد <strong>${slowMoving.length}</strong> منتج لم يتم بيع أي قطعة منها في هذه الفترة. يُنصح بعمل خصم ترويجي بنسبة 10-15% أو تضمينها في باقات (Bundle) لتنشيط حركتها.`);
     }
-    if (metrics.totalOrders > 0 && metrics.avgOrderValue > 0) {
-      recommendations.push(`🛒 <strong>زيادة متوسط الفاتورة:</strong> متوسط الفاتورة الحالي <strong>${Math.round(metrics.avgOrderValue)} ${currency}</strong>. يمكنك رفعه بتدريب الكاشير على الـ Cross-selling واقتراح إكسسوارات سريعة عند الدفع.`);
+    if (safeMetrics.totalOrders > 0 && safeMetrics.avgOrderValue > 0) {
+      recommendations.push(`🛒 <strong>زيادة متوسط الفاتورة:</strong> متوسط الفاتورة الحالي <strong>${Math.round(safeMetrics.avgOrderValue)} ${currency}</strong>. يمكنك رفعه بتدريب الكاشير على الـ Cross-selling واقتراح إكسسوارات سريعة عند الدفع.`);
     }
     if (recommendations.length === 0) {
       recommendations.push(`📈 <strong>المحافظة على وتيرة النمو:</strong> استمر في تسجيل الفواتير بانتظام لمتابعة الأنماط الشرائية وتقديم توصيات أكثر دقة.`);
@@ -63,7 +83,7 @@ const AIAssistant = {
 
     return {
       periodName,
-      metrics,
+      metrics: safeMetrics,
       currency,
       catData,
       peakData,
@@ -80,7 +100,7 @@ window.AIAssistant = AIAssistant;
 
 // Natural Language Processing & Response Generation Engine
 AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
-  const query = (rawQuery || '').trim().toLowerCase();
+  const query = this.normalizeDigits(rawQuery).trim().toLowerCase();
   const settings = Store.getSettings();
   const currency = settings.currency || 'EGP';
 
@@ -102,10 +122,15 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     targetPeriod = 'all';
   }
 
-  const metrics = AnalyticsManager.getMetrics(targetPeriod);
+  const metrics = AnalyticsManager.getMetrics(targetPeriod) || {
+    totalRevenue: 0, totalCost: 0, totalProfit: 0, profitMargin: 0,
+    totalOrders: 0, totalItems: 0, avgOrderValue: 0,
+    productStats: [], topProducts: []
+  };
   const periodLabel = this.getPeriodLabel(targetPeriod);
   const allProducts = ProductsManager.findAll() || [];
-  const lowStock = allProducts.filter(p => p.stock <= (p.minStock || 5));
+  // تنبيه المخزون المنخفض عند بقاء قطعة واحدة أو أقل.
+  const lowStock = allProducts.filter(p => Number(p.stock) <= 1);
 
   // 1. Greetings & Identity
   if (/^(مرحبا|أهلا|اهلا|سلام|مساء الخير|صباح الخير|ازيك|hi|hello|hey)/i.test(query)) {
@@ -125,31 +150,66 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
   }
 
   // 2. Specific Product Lookup
-  const matchedProducts = allProducts.filter(p => 
-    query.includes(p.name.toLowerCase()) || 
-    (p.nameEn && query.includes(p.nameEn.toLowerCase())) || 
-    (p.barcode && query.includes(p.barcode))
-  );
+  const matchedProducts = allProducts.filter(p => {
+    const name = String(p.name || '').toLowerCase();
+    const nameEn = String(p.nameEn || '').toLowerCase();
+    const barcode = String(p.barcode || '');
+    return (name && query.includes(name)) || (nameEn && query.includes(nameEn)) || (barcode && query.includes(barcode));
+  });
 
   if (matchedProducts.length > 0 && matchedProducts.length <= 3) {
     const p = matchedProducts[0];
-    const stat = metrics.productStats.find(s => s.id === p.id) || { qty: 0, revenue: 0, profit: 0 };
+    const productSizes = this.getProductSizes(p);
+    const stat = (metrics.productStats || []).find(s => s.id === p.id) || { qty: 0, revenue: 0, profit: 0 };
     return `
       📦 <strong>تقرير عن منتج: "${p.name}"</strong><br>
       <div style="background:var(--light); padding:10px; border-radius:8px; margin:8px 0; border:1px solid var(--border);">
         🔹 <strong>سعر البيع:</strong> ${p.price} ${currency} (السعر السابق: ${p.oldPrice || p.price} ${currency})<br>
         🔹 <strong>سعر التكلفة:</strong> ${p.cost || 0} ${currency}<br>
         🔹 <strong>الربح في القطعة:</strong> ${(p.price - (p.cost || 0))} ${currency}<br>
-        🔹 <strong>المخزون الحالي:</strong> <span style="font-weight:bold; color:${p.stock <= (p.minStock || 5) ? 'var(--danger)' : 'var(--success)'};">${p.stock} قطعة</span> (حد الطلب: ${p.minStock || 5})<br>
+        🔹 <strong>المخزون الحالي:</strong> <span style="font-weight:bold; color:${Number(p.stock) <= 1 ? 'var(--danger)' : 'var(--success)'};">${p.stock} قطعة</span> (التنبيه عند بقاء قطعة واحدة أو أقل)<br>
         🔹 <strong>الباركود:</strong> <code>${p.barcode}</code><br>
+        ${productSizes.length ? `🔹 <strong>المقاسات المتاحة:</strong> ${productSizes.join('، ')}<br>` : ''}
         🔹 <strong>المبيعات في فترة (${periodLabel}):</strong> تم بيع <strong>${stat.qty}</strong> قطعة بإجمالي <strong>${stat.revenue.toLocaleString()} ${currency}</strong> وأرباح <strong>${stat.profit.toLocaleString()} ${currency}</strong>.
       </div>
-      ${p.stock <= (p.minStock || 5) ? '⚠️ <strong>تنبيه:</strong> المخزون منخفض جداً! يفضل طلب دفعة جديدة من المورد الآن.' : '✔️ المخزون في حالة جيدة.'}
+      ${Number(p.stock) <= 1 ? '⚠️ <strong>تنبيه:</strong> المخزون منخفض جداً! لم يتبقَّ سوى قطعة واحدة أو أقل، ويُفضل طلب دفعة جديدة من المورد الآن.' : '✔️ المخزون في حالة جيدة.'}
     `;
   }
 
-  // 3. Low Stock / Reorder Queries
-  if (/نواقص|ناقص|مخزون|قرب يخلص|يخلص|خلص|حد ادنى|طلب بضاعة|توريد|low stock/i.test(query)) {
+  // 3. Inventory value and product count
+  if (/قيمة المخزون|فلوس المخزن|رأس المال|عدد المنتجات|كام منتج|inventory value|stock value/i.test(query)) {
+    const inventory = allProducts.reduce((summary, product) => {
+      const stock = Number(product.stock) || 0;
+      const cost = Number(product.cost) || 0;
+      const price = Number(product.price) || 0;
+      summary.items += stock;
+      summary.cost += stock * cost;
+      summary.retail += stock * price;
+      return summary;
+    }, { items: 0, cost: 0, retail: 0 });
+    return `📦 <strong>ملخص المخزون الحالي:</strong><br>
+      🔹 عدد الأصناف: <strong>${allProducts.length}</strong> منتج<br>
+      🔹 إجمالي القطع: <strong>${inventory.items.toLocaleString('ar-EG')}</strong> قطعة<br>
+      🔹 قيمة المخزون بسعر التكلفة: <strong>${this.formatMoney(inventory.cost, currency)}</strong><br>
+      🔹 القيمة المتوقعة بسعر البيع: <strong>${this.formatMoney(inventory.retail, currency)}</strong><br>
+      🔹 هامش الربح المتوقع للمخزون: <strong>${this.formatMoney(inventory.retail - inventory.cost, currency)}</strong>`;
+  }
+
+  // 4. Customers and repeat-purchase overview
+  if (/العملاء|الزبائن|العملاء المميزين|vip|customer|customers/i.test(query)) {
+    const customers = typeof CustomersManager !== 'undefined' ? (CustomersManager.findAll() || []) : [];
+    const totalSpent = customers.reduce((sum, customer) => sum + (Number(customer.totalSpent) || 0), 0);
+    const vip = customers.filter(customer => (Number(customer.totalSpent) || 0) >= 1000).length;
+    const repeat = customers.filter(customer => (Number(customer.ordersCount) || 0) > 1).length;
+    return `👥 <strong>ملخص العملاء:</strong><br>
+      🔹 إجمالي العملاء: <strong>${customers.length}</strong><br>
+      🔹 عملاء VIP (مشتريات 1000 أو أكثر): <strong>${vip}</strong><br>
+      🔹 العملاء المتكررون: <strong>${repeat}</strong><br>
+      🔹 إجمالي مشتريات العملاء المسجلة: <strong>${this.formatMoney(totalSpent, currency)}</strong>`;
+  }
+
+  // 5. Low Stock / Reorder Queries
+  if (/نواقص|ناقص|مخزون|قرب يخلص|يخلص|خلص|أوشكت|اوشكت|نفاد|ينفد|حد ادنى|طلب بضاعة|إعادة طلب|اعادة طلب|توريد|low stock/i.test(query)) {
     if (lowStock.length === 0) {
       return `🎉 <strong>مستوى المخزون ممتاز!</strong> لا توجد أي منتجات وصلت لحد الطلب الأدنى حالياً. كل المنتجات متوفرة بكميات كافية.`;
     }
@@ -163,8 +223,8 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     `;
   }
 
-  // 4. Profit & Margins Queries
-  if (/أرباح|ارباح|ربح|مكسب|صافي|هامش|تكلفة|profit|margin/i.test(query)) {
+  // 6. Profit & Margins Queries
+  if (/أرباح|ارباح|ربح|مكسب|صافي|هامش|تكلفة|profit|margin/i.test(query) && !/أعلى|اكتر|أكثر|افضل|أفضل|توب|best|top|مبيع|منتجات/i.test(query)) {
     return `
       📈 <strong>تحليل الأرباح والهوامش لفترة (${periodLabel}):</strong><br>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:10px 0;">
@@ -184,9 +244,9 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     `;
   }
 
-  // 5. Top Selling Products
-  if (/أعلى|اكتر|أكثر|افضل|أفضل|توب|best|top|ماشية|طلب/i.test(query) && !/قسم|أقسام/i.test(query)) {
-    const top5 = metrics.topProducts.slice(0, 5);
+  // 7. Top Selling Products
+  if (/أعلى|اكتر|أكثر|افضل|أفضل|توب|best|top|ماشية|مبيع/i.test(query) && !/قسم|أقسام|مخزون|نواقص|نفاد|أوشكت|اعادة طلب|إعادة طلب/i.test(query)) {
+    const top5 = (metrics.topProducts || []).slice(0, 5);
     if (top5.length === 0) {
       return `ℹ️ لا توجد مبيعات مسجلة في فترة (${periodLabel}) لحساب قائمة الأكثر مبيعاً.`;
     }
@@ -203,9 +263,9 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     `;
   }
 
-  // 6. Slow Moving / Dead Stock
+  // 8. Slow Moving / Dead Stock
   if (/راكد|رواكد|مش بيتباع|مش شغالة|واقفة|بطيء|slow|dead/i.test(query)) {
-    const soldIds = new Set(metrics.productStats.map(p => p.id));
+    const soldIds = new Set((metrics.productStats || []).map(p => p.id));
     const slow = allProducts.filter(p => !soldIds.has(p.id));
     if (slow.length === 0) {
       return `🎉 <strong>أداء ممتاز!</strong> جميع المنتجات المعروضة في المحل تم بيع قطع منها خلال هذه الفترة ولا توجد منتجات راكدة.`;
@@ -224,7 +284,7 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     `;
   }
 
-  // 7. Categories Breakdown
+  // 9. Categories Breakdown
   if (/قسم|أقسام|اقسام|تصنيف|فئات|category/i.test(query)) {
     const catData = AnalyticsManager.getCategoryData(targetPeriod);
     if (catData.categories.length === 0) {
@@ -251,7 +311,7 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     `;
   }
 
-  // 8. Peak Times & Days
+  // 10. Peak Times & Days
   if (/وقت|ساعات|ذروة|يوم|أيام|ايام|متى|peak|time/i.test(query)) {
     const peak = AnalyticsManager.getHourlyAndWeekdayData(targetPeriod);
     return `
@@ -264,7 +324,7 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     `;
   }
 
-  // 9. Business Advice / Tips
+  // 11. Business Advice / Tips
   if (/نصائح|توصيات|ازاي ازود|إزاي أزود|أفكار|تطوير|خطة|تسويق|advice|tips/i.test(query)) {
     return `
       🎯 <strong>5 نصائح عملية ومخصصة لزيادة مبيعات وأرباح متجر الفارس:</strong><br>
@@ -278,7 +338,7 @@ AIAssistant.processQuery = function(rawQuery, period = this.currentPeriod) {
     `;
   }
 
-  // 10. General Period / Sales Summary Fallback
+  // 12. General Period / Sales Summary Fallback
   return `
     📊 <strong>ملخص المبيعات لفترة (${periodLabel}):</strong><br>
     <div style="background:var(--light); padding:12px; border-radius:8px; margin:10px 0; line-height:1.8;">
@@ -315,7 +375,7 @@ AIAssistant.renderChatMessages = function() {
   if (!container) return;
 
   container.innerHTML = this.chatHistory.map(msg => `
-    <div class="chat-msg ${msg.sender}">
+    <div class="chat-msg ${msg.sender === 'bot' ? 'bot' : 'user'}">
       <div class="chat-avatar">${msg.sender === 'bot' ? '🤖' : '👤'}</div>
       <div class="chat-content">
         <div class="chat-bubble">${msg.text}</div>
@@ -330,13 +390,15 @@ AIAssistant.renderChatMessages = function() {
 AIAssistant.sendMessage = function(text) {
   const query = (text || '').trim();
   if (!query) return;
+  if (this.isProcessing) return;
+  this.isProcessing = true;
 
   const nowTime = new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
   // Add User Message
   this.chatHistory.push({
     sender: 'user',
-    text: query,
+    text: this.escapeHtml(query),
     time: nowTime
   });
   this.renderChatMessages();
@@ -363,8 +425,14 @@ AIAssistant.sendMessage = function(text) {
 
   // Generate Response
   setTimeout(() => {
-    const responseText = this.processQuery(query, this.currentPeriod);
-    
+    let responseText;
+    try {
+      responseText = this.processQuery(query, this.currentPeriod);
+    } catch (error) {
+      console.error('AI assistant error:', error);
+      responseText = '⚠️ حصلت مشكلة أثناء تحليل السؤال. جرّب صياغة السؤال بطريقة أبسط أو اضغط تحديث التحليل.';
+    }
+    this.isProcessing = false;
     // Remove typing indicator
     const ind = document.getElementById('ai-typing-indicator');
     if (ind) ind.remove();
@@ -379,6 +447,9 @@ AIAssistant.sendMessage = function(text) {
 };
 
 AIAssistant.clearChat = function() {
+  this.isProcessing = false;
+  const indicator = document.getElementById('ai-typing-indicator');
+  if (indicator) indicator.remove();
   this.chatHistory = [];
   this.initChat();
 };

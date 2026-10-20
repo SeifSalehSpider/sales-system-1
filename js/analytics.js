@@ -100,6 +100,37 @@ const AnalyticsManager = {
       salesCount: totalOrders,
       currency: settings.currency || 'EGP'
     };
+  },
+
+  getMonthlySummary(period = this.currentPeriod) {
+    const startDate = this.getStartDateForPeriod(period);
+    const entries = Store.getStockEntries().filter(entry => new Date(entry.date) >= startDate);
+    const months = {};
+
+    entries.forEach(entry => {
+      const date = new Date(entry.date);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!months[key]) {
+        months[key] = {
+          key,
+          label: date.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' }),
+          quantity: 0,
+          wholesale: 0,
+          sales: 0,
+          profit: 0
+        };
+      }
+
+      const qty = Number(entry.qty) || 0;
+      const wholesaleTotal = (Number(entry.cost) || 0) * qty;
+      const salesTotal = (Number(entry.price) || 0) * qty;
+      months[key].quantity += qty;
+      months[key].wholesale += wholesaleTotal;
+      months[key].sales += salesTotal;
+      months[key].profit += salesTotal - wholesaleTotal;
+    });
+
+    return Object.values(months).sort((a, b) => b.key.localeCompare(a.key));
   }
 };
 
@@ -253,7 +284,11 @@ AnalyticsManager.renderCharts = function(period = this.currentPeriod) {
             fill: true,
             tension: 0.35,
             pointRadius: 4,
-            pointHoverRadius: 6
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#fff',
+            pointBorderColor: '#0d6efd',
+            pointBorderWidth: 2,
+            pointHoverBorderWidth: 3
           },
           {
             label: `صافي الأرباح (${currency})`,
@@ -264,13 +299,54 @@ AnalyticsManager.renderCharts = function(period = this.currentPeriod) {
             borderDash: [4, 4],
             fill: false,
             tension: 0.35,
-            pointRadius: 3
+            pointRadius: 3,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#fff',
+            pointBorderColor: '#198754',
+            pointBorderWidth: 2,
+            pointHoverBorderWidth: 3
           }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        animation: {
+          duration: 2200,
+          easing: 'easeInOutQuart',
+          delay(context) {
+            if (context.type !== 'data' || context.mode) return 0;
+            return context.dataIndex * 140 + context.datasetIndex * 260;
+          }
+        },
+        animations: {
+          y: {
+            from: 0,
+            duration: 1800,
+            easing: 'easeOutQuart'
+          },
+          x: {
+            duration: 1200,
+            easing: 'easeOutQuart'
+          },
+          radius: {
+            from: 0,
+            duration: 900,
+            easing: 'easeOutBack'
+          }
+        },
+        transitions: {
+          active: {
+            animation: {
+              duration: 250
+            }
+          },
+          resize: {
+            animation: {
+              duration: 450
+            }
+          }
+        },
         plugins: {
           legend: { position: 'top', rtl: true, labels: { font: { family: 'Cairo, Segoe UI' } } },
           tooltip: { rtl: true, textDirection: 'rtl' }

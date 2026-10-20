@@ -4,9 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>الفارس لمستلزمات السباحة و احذية الاطفال</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- جميع ملفات الواجهة محلية حتى يعمل البرنامج بدون إنترنت -->
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .license-gate { display:none; position:fixed; inset:0; z-index:9999; background:rgba(15,23,42,.78); align-items:center; justify-content:center; padding:20px; }
+    .license-gate.visible { display:flex; }
+    .license-card { width:min(440px,100%); background:#fff; border-radius:18px; padding:30px; box-shadow:0 20px 60px rgba(0,0,0,.25); text-align:center; }
+    .license-icon { font-size:42px; margin-bottom:10px; }
+    .license-card h2 { margin-bottom:10px; color:var(--dark); }
+    .license-card p { color:var(--danger); font-weight:700; margin-bottom:12px; }
+    .license-gate #license-message { color:var(--dark); }
+    .file-toast { position:fixed; inset-inline:0; top:18px; z-index:9998; width:max-content; max-width:calc(100% - 24px); margin:0 auto; padding:10px 18px; border-radius:10px; background:#0f172a; color:#fff; font-size:13px; font-weight:700; opacity:0; transform:translateY(-12px); transition:all .25s ease; pointer-events:none; }
+    .file-toast.visible { opacity:1; transform:translateY(0); }
+    .license-trial-note { color:var(--muted); font-size:13px; line-height:1.8; margin-bottom:16px; }
+    .license-card input { width:100%; margin-bottom:12px; direction:ltr; text-align:left; }
+    .license-data-path { display:block; margin-top:14px; color:var(--muted); word-break:break-all; font-size:10px; }
+    .activation-status { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:10px; padding:6px 10px; border-radius:8px; font-size:12px; font-weight:700; }
+    .activation-status.active { color:#166534; background:#dcfce7; }
+    .activation-status.inactive { color:#991b1b; background:#fee2e2; }
+  </style>
 </head>
 <body>
   <div class="layout">
@@ -43,12 +59,17 @@
         </a>
         <a class="nav-item" data-view="customers">
           <span class="icon">👥</span>
-          <span>بيانات العملاء</span>
+          <span>فواتير العملاء</span>
+        </a>
+        <a class="nav-item" data-view="stock-entry">
+          <span class="icon">📥</span>
+          <span>إضافة للمخزون</span>
         </a>
       </nav>
       <div class="sidebar-footer">
         <small>الفارس لمستلزمات<br>السباحة و احذية الاطفال</small>
         <button id="reset-data">🔄 اعادة تعيين</button>
+        <div id="activation-status" class="activation-status inactive" aria-label="حالة التفعيل" title="حالة التفعيل">❌</div>
       </div>
     </aside>
 
@@ -126,6 +147,40 @@
             </div>
           </div>
           <div id="product-category-sections"></div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW: STOCK ENTRY ==================== -->
+      <div id="view-stock-entry" class="view">
+        <div class="analytics-header">
+          <div class="analytics-title">
+            <h2>📥 إضافة منتجات للمخزون</h2>
+            <small class="text-muted">أضف المنتجات يدوياً أو استوردها من ملف Excel</small>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">طرق إضافة المنتجات</div>
+          <div class="form-row" style="align-items:end;">
+            <div class="form-group" style="flex:1; min-width:240px;">
+              <label for="stock-existing-product">اختار منتج من المنتجات الموجودة</label>
+              <select id="stock-existing-product">
+                <option value="">-- اختر المنتج --</option>
+              </select>
+            </div>
+            <div class="form-group" style="width:150px;">
+              <label for="stock-add-quantity">الكمية المضافة</label>
+              <input type="number" id="stock-add-quantity" min="1" step="1" value="1">
+            </div>
+            <button class="btn btn-primary" id="stock-add-existing-btn" style="margin-bottom:15px;">➕ إضافة للمخزون</button>
+          </div>
+          <div class="bulk-actions" style="gap:12px; flex-wrap:wrap;">
+            <button class="btn btn-outline" id="stock-add-product-btn">➕ منتج جديد يدوياً</button>
+            <button class="btn btn-success" id="stock-import-excel-btn">📥 إضافة من ملف Excel</button>
+            <input type="file" id="stock-excel-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
+          </div>
+          <p style="margin-top:16px; color:var(--muted); font-size:13px; line-height:1.8;">
+            سيتم حفظ المنتجات المضافة في نفس مخزون النظام، ويمكنك مراجعتها من صفحة المنتجات.
+          </p>
         </div>
       </div>
 
@@ -324,6 +379,28 @@
             </table>
           </div>
         </div>
+
+        <!-- Monthly Inventory & Profit Summary -->
+        <div class="card monthly-summary-card">
+          <div class="card-title">
+            <span>📦 ملخص المخزون المضاف شهرياً والتكلفة والربح</span>
+            <small class="text-muted">يتم الحساب عند إضافة المخزون، وليس عند البيع. صافي الربح = سعر البيع - سعر الجملة</small>
+          </div>
+          <div class="table-wrap" style="max-height: 320px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>الشهر</th>
+                  <th>الكمية المضافة للمخزون</th>
+                  <th>إجمالي سعر الجملة</th>
+                  <th>إجمالي سعر البيع</th>
+                  <th>المكسب / صافي الربح</th>
+                </tr>
+              </thead>
+              <tbody id="analytics-monthly-summary-tbody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       <!-- ==================== VIEW: AI ASSISTANT ==================== -->
@@ -381,6 +458,8 @@
                 <button class="chip-btn" data-prompt="ما هي المنتجات التي أوشكت على النفاد وتحتاج إعادة طلب؟">⚠️ نواقص المخزون</button>
                 <button class="chip-btn" data-prompt="قارن بين أداء الأقسام المختلفة ونسب مساهمتها">📊 مقارنة الأقسام</button>
                 <button class="chip-btn" data-prompt="ما هي أفضل أوقات الذروة وأفضل أيام الأسبوع في البيع؟">⏰ أوقات الذروة</button>
+                <button class="chip-btn" data-prompt="ما قيمة المخزون الحالي بسعر التكلفة والبيع؟">📦 قيمة المخزون</button>
+                <button class="chip-btn" data-prompt="اعطني ملخص العملاء وعملاء VIP والعملاء المتكررين">👥 ملخص العملاء</button>
                 <button class="chip-btn" data-prompt="أعطني 3 نصائح عملية لزيادة مبيعات وأرباح المحل">🎯 نصائح لزيادة الأرباح</button>
               </div>
 
@@ -482,6 +561,17 @@
           </div>
         </div>
 
+        <!-- Customer Invoices -->
+        <div class="card customer-invoices-card">
+          <div class="card-title" style="flex-wrap:wrap; gap:10px;">
+            <span>🧾 فواتير العميل المحدد</span>
+            <span id="customer-invoices-summary" class="text-muted" style="font-size:12px;">اختر عميلاً لعرض فواتيره</span>
+          </div>
+          <div id="customer-invoices-list" class="customer-invoices-list">
+            <div class="empty">اضغط على اسم العميل أو زر «عرض» لعرض فواتيره</div>
+          </div>
+        </div>
+
         <!-- Leaderboard Table -->
         <div class="card">
           <div class="card-title">
@@ -536,7 +626,11 @@
         <input type="number" id="checkout-discount" value="0" min="0" oninput="App.updateCheckoutTotal()">
       </div>
       <div class="form-group">
-        <label>المجموع بعد الخصم</label>
+        <label>تكلفة الشحن</label>
+        <input type="number" id="checkout-shipping" value="0" min="0" step="0.01" oninput="App.updateCheckoutTotal()">
+      </div>
+      <div class="form-group">
+        <label>المجموع بعد الخصم والشحن</label>
         <div style="font-size:20px;font-weight:bold;padding:5px 0;" id="checkout-total">0 EGP</div>
       </div>
       <div class="form-group">
@@ -550,6 +644,10 @@
           <option value="card">بطاقة</option>
           <option value="cod">الدفع عند الاستلام</option>
         </select>
+      </div>
+      <div class="form-group" id="checkout-address-group" style="display:none;">
+        <label>📍 عنوان العميل (للتوصيل)</label>
+        <textarea id="checkout-customer-address" rows="2" placeholder="المحافظة، المدينة، الشارع، رقم العقار..." style="width:100%; resize:vertical; font-family:inherit;"></textarea>
       </div>
       <div class="form-group">
         <label>الباقي</label>
@@ -569,13 +667,18 @@
       <input type="hidden" id="product-id">
       <div class="form-row">
         <div class="form-group">
-          <label>الاسم (عربي)</label>
-          <input type="text" id="product-name" placeholder="اسم المنتج">
+          <label>الصنف</label>
+          <input type="text" id="product-name" placeholder="اسم الصنف">
         </div>
         <div class="form-group">
-          <label>الاسم (English)</label>
-          <input type="text" id="product-name-en" placeholder="Product name">
+          <label>وصف الموديل</label>
+          <input type="text" id="product-model-description" placeholder="وصف الموديل">
+          <input type="hidden" id="product-name-en" value="">
         </div>
+      </div>
+      <div class="form-group">
+        <label>اسم المصنع</label>
+        <input type="text" id="product-manufacturer" placeholder="اسم المصنع">
       </div>
       <div class="form-group">
         <label>الباركود <small>(EAN-13)</small></label>
@@ -589,24 +692,18 @@
         <select id="product-category"></select>
       </div>
 <div class="form-row">
-        <div class="form-group">
-          <label>السعر قبل الخصم (EGP)</label>
-          <input type="number" id="product-oldprice" step="0.01" min="0">
-        </div>
-        <div class="form-group">
-          <label>سعر البيع بعد الخصم (EGP)</label>
-          <input type="number" id="product-price" step="0.01" min="0">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>سعر الشراء (EGP)</label>
-          <input type="number" id="product-cost" step="0.01" min="0">
-        </div>
-        <div class="form-group">
-          <label>الخصم (EGP)</label>
-          <input type="number" id="product-discount" step="0.01" min="0" readonly>
-        </div>
+  <div class="form-group">
+    <label>سعر الجملة (EGP)</label>
+    <input type="number" id="product-cost" step="0.01" min="0">
+  </div>
+  <div class="form-group">
+    <label>سعر البيع (EGP)</label>
+    <input type="number" id="product-price" step="0.01" min="0">
+  </div>
+</div>
+      <div class="form-group">
+        <label>المقاسات المتاحة</label>
+        <input type="text" id="product-available-sizes" placeholder="مثال: S، M، L، XL">
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -785,6 +882,7 @@
         <div class="receipt-meta" id="receipt-customer-meta" style="display:none;">
           <div>العميل: <strong id="receipt-customer-name">—</strong></div>
           <div>الهاتف: <span id="receipt-customer-phone">—</span></div>
+          <div id="receipt-customer-address-row" style="display:none;">العنوان: <span id="receipt-customer-address">—</span></div>
         </div>
         <hr class="receipt-divider">
         <table class="receipt-table">
@@ -802,6 +900,7 @@
         <div class="receipt-totals">
           <div class="receipt-row"><span>المجموع:</span> <span id="receipt-subtotal">0 EGP</span></div>
           <div class="receipt-row" id="receipt-discount-row"><span>الخصم:</span> <span id="receipt-discount">0 EGP</span></div>
+          <div class="receipt-row" id="receipt-shipping-row"><span>تكلفة الشحن:</span> <span id="receipt-shipping">0 EGP</span></div>
           <div class="receipt-row bold-total"><span>الصافي المطلوب:</span> <span id="receipt-total">0 EGP</span></div>
           <div class="receipt-row"><span>المدفوع:</span> <span id="receipt-paid">0 EGP</span></div>
           <div class="receipt-row"><span>المتبقي:</span> <span id="receipt-change">0 EGP</span></div>
@@ -819,15 +918,62 @@
     </div>
   </div>
 
+  <!-- Edit Customer Invoice Modal -->
+  <div class="modal" id="sale-edit-modal">
+    <div class="modal-content" style="max-width: 760px;">
+      <h2>✏️ تعديل فاتورة العميل</h2>
+      <input type="hidden" id="edit-sale-id">
+      <div class="form-row">
+        <div class="form-group"><label>اسم العميل</label><input type="text" id="edit-sale-customer-name"></div>
+        <div class="form-group"><label>رقم الهاتف</label><input type="tel" id="edit-sale-customer-phone"></div>
+      </div>
+      <div class="edit-sale-add-product">
+        <label for="edit-sale-product-serial">إضافة أو استبدال منتج بالاسم أو السيريال أو الباركود</label>
+        <div class="edit-sale-serial-row">
+          <input type="text" id="edit-sale-product-serial" placeholder="اكتب اسم المنتج أو السيريال أو الباركود ثم اضغط إضافة" autocomplete="off">
+          <button class="btn btn-success" id="add-edit-sale-product">➕ إضافة المنتج</button>
+          <div id="edit-sale-product-suggestions" class="edit-sale-product-suggestions"></div>
+        </div>
+        <small>يمكنك البحث باسم المنتج أو بالسيريال الداخلي أو بالباركود المطبوع عليه.</small>
+      </div>
+      <div class="table-wrap edit-sale-items-wrap">
+        <table>
+          <thead><tr><th>المنتج</th><th>الكمية</th><th>سعر الوحدة</th><th>الإجمالي</th><th>إجراء</th></tr></thead>
+          <tbody id="edit-sale-items-tbody"></tbody>
+        </table>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>الخصم</label><input type="number" id="edit-sale-discount" min="0" step="0.01"></div>
+        <div class="form-group"><label>تكلفة الشحن</label><input type="number" id="edit-sale-shipping" min="0" step="0.01"></div>
+        <div class="form-group"><label>المبلغ المدفوع</label><input type="number" id="edit-sale-paid" min="0" step="0.01"></div>
+        <div class="form-group"><label>طريقة الدفع</label><select id="edit-sale-payment"><option value="cash">نقدي</option><option value="card">بطاقة</option><option value="cod">الدفع عند الاستلام</option></select></div>
+      </div>
+      <div class="form-group">
+        <label>نوع تعديل المنتجات</label>
+        <select id="edit-sale-change-type">
+          <option value="exchange">تبديل منتج</option>
+          <option value="return">مرتجع</option>
+        </select>
+      </div>
+      <div id="edit-sale-total-preview" class="edit-sale-total-preview"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="save-sale-edit">💾 حفظ التعديل</button>
+        <button class="btn btn-outline" id="cancel-sale-edit">❌ إلغاء</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast notification -->
   <div class="toast" id="toast"></div>
 
   <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script src="js/vendor-chart.umd.js"></script>
+  <script src="js/vendor-xlsx.full.min.js"></script>
+  <script src="js/vendor-jsbarcode.all.min.js"></script>
   <script src="data/seed-data.js"></script>
+  <script src="js/web-store.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/license.js"></script>
   <script src="js/barcode.js"></script>
   <script src="js/products.js"></script>
   <script src="js/sales.js"></script>
@@ -847,8 +993,12 @@
     App.updateCheckoutTotal = function() {
       const oldSubtotal = SalesManager.getOldSubtotal();
       const discount = parseFloat(document.getElementById('checkout-discount').value) || 0;
-      const total = Math.max(0, oldSubtotal - discount);
-      const paid = parseFloat(document.getElementById('checkout-paid').value) || 0;
+      const shipping = Math.max(0, parseFloat(document.getElementById('checkout-shipping').value) || 0);
+      const total = Math.max(0, oldSubtotal - discount + shipping);
+      // Keep the paid amount synchronized with the current invoice total.
+      const paidInput = document.getElementById('checkout-paid');
+      paidInput.value = total;
+      const paid = total;
       const change = Math.max(0, paid - total);
       const settings = Store.getSettings();
 

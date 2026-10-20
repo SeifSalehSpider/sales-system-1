@@ -5,6 +5,29 @@ const ProductsManager = {
   load() {
     this.private.products = Store.getProducts();
     this.private.categories = Store.getCategories();
+
+    // ترحيل المنتجات القديمة التي كانت تُحفظ كسطر مستقل لكل مقاس إلى منتج واحد بقائمة مقاسات.
+    const grouped = new Map();
+    this.private.products.forEach(product => {
+      const key = `${product.name || ''}__${product.category || ''}__${product.price || 0}__${product.cost || 0}`;
+      let existing = grouped.get(key);
+      if (!existing) {
+        existing = { ...product, sizes: this.parseSizes(product.sizes?.length ? product.sizes : (product.size || product.availableSizes)) };
+        existing.size = '';
+        existing.availableSizes = existing.sizes.join('، ');
+        grouped.set(key, existing);
+      } else {
+        const oldSizes = this.parseSizes(product.sizes?.length ? product.sizes : (product.size || product.availableSizes));
+        existing.sizes = this.parseSizes([...(existing.sizes || []), ...oldSizes]);
+        existing.availableSizes = existing.sizes.join('، ');
+        existing.stock = (Number(existing.stock) || 0) + (Number(product.stock) || 0);
+      }
+    });
+    const normalizedProducts = [...grouped.values()];
+    if (normalizedProducts.length !== this.private.products.length) {
+      this.private.products = normalizedProducts;
+      Store.saveProducts(this.private.products);
+    }
     return this.private.products;
   },
 
@@ -34,18 +57,37 @@ const ProductsManager = {
     return this.private.products.find(p => p.barcode === code);
   },
 
+  // يحول أي صيغة للمقاسات إلى مقاسات منفصلة، مهما كان الفاصل بينها.
+  // مثال: 32/34/34 أو 32-34-36 أو 32، 34، 36 أو S | M | L.
+  parseSizes(value) {
+    const rawValues = Array.isArray(value) ? value : [value];
+    return [...new Set(rawValues
+      .flatMap(size => String(size ?? '').trim().split(/[\s,،؛;:：|/\\+\-_–—.()\[\]{}]+/))
+      .map(size => size.trim())
+      .filter(Boolean))];
+  },
+
+  getDisplayName(product) {
+    return product?.name || '';
+  },
+
+  getSizes(product) {
+    return this.parseSizes(product?.sizes?.length ? product.sizes : product?.availableSizes);
+  },
+
   search(query) {
     query = query.trim().toLowerCase();
     if (!query) return this.private.products;
     return this.private.products.filter(p =>
-      p.name.toLowerCase().includes(query) ||
-      (p.nameEn || '').toLowerCase().includes(query) ||
-      p.barcode.includes(query) ||
+      String(p.name || '').toLowerCase().includes(query) ||
+      String(p.nameEn || '').toLowerCase().includes(query) ||
+      String(p.size || '').toLowerCase().includes(query) ||
+      String(p.barcode || '').toLowerCase().includes(query) ||
       this.getCategoryName(p.category).toLowerCase().includes(query)
     );
   },
 
-  add(product) {
+  add(product, options = {}) {
     product.id = product.id || ('p' + Date.now() + Math.floor(Math.random() * 1000));
     if (!product.category) {
       const defaultCat = this.getOrCreateCategory('عام', 'General');
@@ -53,6 +95,19 @@ const ProductsManager = {
     }
     this.private.products.push(product);
     Store.saveProducts(this.private.products);
+    if ((Number(product.stock) || 0) > 0 && options.recordEntry !== false) {
+      const entries = Store.getStockEntries();
+      entries.push({
+        id: 'stock_' + Date.now() + Math.floor(Math.random() * 1000),
+        date: new Date().toISOString(),
+        productId: product.id,
+        productName: product.name,
+        qty: Number(product.stock) || 0,
+        cost: Number(product.cost) || 0,
+        price: Number(product.price) || 0
+      });
+      Store.saveStockEntries(entries);
+    }
     return product;
   },
 
@@ -76,16 +131,32 @@ const ProductsManager = {
   },
 
   // Adjust stock: increase or decrease by qty
-  adjustStock(id, qty) {
+  adjustStock(id, qty, options = {}) {
     const p = this.findById(id);
     if (!p) return null;
     p.stock = Math.max(0, (p.stock || 0) + qty);
     Store.saveProducts(this.private.products);
+
+    // Only positive manual additions are recorded for monthly stock analytics.
+    if (qty > 0 && options.recordEntry !== false) {
+      const entries = Store.getStockEntries();
+      entries.push({
+        id: 'stock_' + Date.now() + Math.floor(Math.random() * 1000),
+        date: new Date().toISOString(),
+        productId: p.id,
+        productName: p.name,
+        qty,
+        cost: Number(p.cost) || 0,
+        price: Number(p.price) || 0
+      });
+      Store.saveStockEntries(entries);
+    }
     return p;
   },
 
   getLowStock() {
-    return this.private.products.filter(p => p.stock <= (p.minStock || 0));
+    // يظهر التنبيه عندما يتبقى منتج واحد أو أقل، بغض النظر عن حد الطلب المحفوظ.
+    return this.private.products.filter(p => Number(p.stock) <= 1);
   },
 
   addCategory(name, nameEn) {
@@ -140,33 +211,26 @@ const ProductsManager = {
 
     const rows = products.map((p, idx) => ({
       '#': idx + 1,
-      'اسم المنتج (عربي)': p.name,
-      'الاسم بالإنجليزية': p.nameEn || '',
-      'الباركود': p.barcode || '',
-      'القسم': this.getCategoryName(p.category),
-      'سعر البيع': p.price,
-      'السعر قبل الخصم': p.oldPrice || p.price,
-      'سعر الشراء': p.cost || 0,
-      'الربح التقديري': (p.price - (p.cost || 0)),
-      'المخزون الحالي': p.stock || 0,
-      'الحد الأدنى': p.minStock || 0,
-      'حالة المخزون': (p.stock <= (p.minStock || 5)) ? 'منخفض ⚠️' : 'متوفر ✔️'
+      'الصنف': p.name,
+      'وصف الموديل': p.modelDescription || p.nameEn || '',
+      'اسم المصنع': p.manufacturer || this.getCategoryName(p.category),
+      'سعر الجملة': p.cost || 0,
+      'سعر البيع': p.price || 0,
+      'الربح': (p.price || 0) - (p.cost || 0),
+      'المقاسات': this.getSizes(p).join('، '),
+      'المخزون': p.stock || 0,
+      'سعر الجملة *العدد': (p.cost || 0) * (p.stock || 0),
+      'سعر البيع*العدد': (p.price || 0) * (p.stock || 0),
+      'الربح*العدد': ((p.price || 0) - (p.cost || 0)) * (p.stock || 0),
+      'المقاسات المتاحة': p.availableSizes || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!rtl'] = true;
+    ws['!views'] = [{ rightToLeft: true }];
     ws['!cols'] = [
-      { wch: 6 },  // #
-      { wch: 30 }, // اسم
-      { wch: 25 }, // English
-      { wch: 18 }, // باركود
-      { wch: 20 }, // قسم
-      { wch: 12 }, // بيع
-      { wch: 14 }, // قبل الخصم
-      { wch: 12 }, // شراء
-      { wch: 14 }, // ربح
-      { wch: 14 }, // مخزون
-      { wch: 12 }, // حد ادنى
-      { wch: 14 }  // حالة
+      { wch: 30 }, { wch: 35 }, { wch: 25 }, { wch: 14 }, { wch: 14 },
+      { wch: 14 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 18 }, { wch: 22 }
     ];
 
     const wb = XLSX.utils.book_new();
@@ -207,10 +271,19 @@ const ProductsManager = {
     let addedCount = 0;
     let updatedCount = 0;
 
-    items.forEach((item, index) => {
-      if (!item.name || !String(item.name).trim()) return;
+    // كل صف يظل منتجاً واحداً، والمقاسات تحفظ كقائمة داخل المنتج.
+    const normalizedItems = items
+      .filter(item => item && item.name && String(item.name).trim())
+      .map(item => ({
+        ...item,
+        sizes: this.parseSizes(item.sizes?.length ? item.sizes : item.availableSizes),
+        availableSizes: item.availableSizes || (item.sizes || []).join('، ')
+      }));
 
-      const catObj = this.getOrCreateCategory(item.category, item.nameEn || item.category);
+    normalizedItems.forEach((item, index) => {
+       if (!item.name || !String(item.name).trim()) return;
+
+       const catObj = this.getOrCreateCategory(item.category || item.manufacturer, item.manufacturer || item.nameEn);
       const categoryId = catObj.id;
 
       const price = parseFloat(item.price) || 0;
@@ -232,6 +305,11 @@ const ProductsManager = {
         this.update(existingProd.id, {
           name: String(item.name).trim(),
           nameEn: item.nameEn ? String(item.nameEn).trim() : existingProd.nameEn || '',
+          modelDescription: item.modelDescription || existingProd.modelDescription || '',
+          manufacturer: item.manufacturer || existingProd.manufacturer || '',
+          availableSizes: item.availableSizes || existingProd.availableSizes || '',
+          size: '',
+          sizes: item.sizes || existingProd.sizes || this.parseSizes(item.availableSizes),
           category: categoryId,
           price: price,
           oldPrice: oldPrice,
@@ -246,6 +324,11 @@ const ProductsManager = {
           id: 'p' + (Date.now() + index + Math.floor(Math.random() * 10000)),
           name: String(item.name).trim(),
           nameEn: item.nameEn ? String(item.nameEn).trim() : '',
+          modelDescription: item.modelDescription || '',
+          manufacturer: item.manufacturer || '',
+          availableSizes: item.availableSizes || '',
+          size: '',
+          sizes: item.sizes || this.parseSizes(item.availableSizes),
           barcode: barcode,
           category: categoryId,
           price: price,
@@ -256,6 +339,20 @@ const ProductsManager = {
         };
         this.private.products.push(newProduct);
         addedCount++;
+      }
+
+      if (stock > 0) {
+        const entries = Store.getStockEntries();
+        entries.push({
+          id: 'stock_' + Date.now() + index + Math.floor(Math.random() * 1000),
+          date: new Date().toISOString(),
+          productId: existingProd ? existingProd.id : this.private.products[this.private.products.length - 1].id,
+          productName: String(item.name).trim(),
+          qty: stock,
+          cost,
+          price
+        });
+        Store.saveStockEntries(entries);
       }
     });
 
